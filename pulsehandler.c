@@ -7,7 +7,8 @@
 #include <pulsehandler.h>
 #include <shared.h>
 
-const int DEVICE_MAX = 16;
+#define MAX_ITERATIONS 50000
+#define DEVICE_MAX 16
 
 int sink_count = 0;
 
@@ -51,27 +52,40 @@ void pa_sinklist_cb(pa_context *c, const pa_sink_info *sink_info, int eol, void 
     // they're going to get dropped.  You could make this dynamically allocate
     // space for the device list, but this is a simple example.
     for (ctr = 0; ctr < DEVICE_MAX; ctr++) {
-		pa_device_t device = pa_devicelist[ctr];
-		
-		
-		printf("Init? %d", device.initialized);
+		pa_device_t device = pa_devicelist[ctr];	
+		// This is a guard against overwriting fetched devices
         if (!device.initialized) {
-			fprintf(logfile, "Found device: %s", device.name);
-            strncpy(device.name, sink_info -> name, 511);
-            strncpy(device.description, sink_info -> description, 255);
-            device.index = sink_info -> index;
-            device.initialized = 1;
+            if (strlen(sink_info -> name) > 0) {
+				device.index = sink_info -> index;
+				strncpy(device.name, sink_info -> name, 511);
+				strncpy(device.description, sink_info -> description, 255);
+				device.initialized = 1;
+				fprintf(logfile, "Found device %d: %d, %s\n", ctr, device.index, device.name);
+				return;
+			}
         }
     }
 }
 
-bool check_pa_op( pa_operation* pa_op) {
+enum pa_state check_pa_op( pa_operation* pa_op) {
+	//FILE* logfile = get_logfile();
 	int pa_op_state = pa_operation_get_state(pa_op);
-	if (pa_op_state == PA_OPERATION_DONE) {
-		pa_operation_unref(pa_op);
-		return true;
+	//fprintf(logfile, "PA operation state: %d\n", pa_op_state);
+	
+	switch(pa_op_state){
+		case PA_OPERATION_RUNNING:
+			return NOT_READY;
+		case PA_OPERATION_DONE:
+			// Once it's done we can unref/cancel it
+			pa_operation_unref(pa_op);
+			return READY;
+		case PA_OPERATION_CANCELLED:
+			// Once it's done we can unref/cancel it
+			pa_operation_unref(pa_op);
+			return ERROR;
 	}
-	return false;
+	
+	return ERROR;
 }
 
 void pa_disconnect(pa_context* pa_ctx, pa_mainloop *mainloop) {
@@ -103,35 +117,33 @@ int pa_get_sinklist(pa_device_t *output_devices) {
     
 	pa_context_set_state_callback(pa_ctx, pa_state_cb, &pa_ready);
 	
-	int retries=0;
-	for (;;) {
-		if (retries > 3) return 1;
-		
+	for (int iterations=0; iterations < MAX_ITERATIONS; iterations++) {		
 		//printf("PA Ready state is: %d\n", pa_ready);
 		switch (pa_ready) {
 			case NOT_READY:
-				//printf("Not ready, iterating.. \n");
+				fprintf(logfile, "PA Not ready, iterating.. %d\n", iterations);
 				pa_mainloop_iterate(mainloop, 1, NULL);
-				retries++;
 				break;
 			case READY:
-				
 				if (!context_set) {
 					fprintf(logfile, "Getting sink info list...\n");
-					// This sends an operation to the server.  pa_sinklist_info is
-					// our callback function and a pointer to our devicelist will
-					// be passed to the callback The operation ID is stored in the
-					// pa_op variable
 					pa_op = pa_context_get_sink_info_list(pa_ctx, pa_sinklist_cb, output_devices);
 					context_set = true;
-
 				} else {
-					if (check_pa_op(pa_op)) {
-						fprintf(logfile, "Sink Retrieve Op success.\n");
-						pa_disconnect(pa_ctx, mainloop);
-						return 0;
-					} else {
-						fprintf(logfile, "Sink Retrieve Op failed.\n");
+					enum pa_state pa_op_state = check_pa_op(pa_op);
+					switch (pa_op_state) {
+						case READY:
+							fprintf(logfile, "Sink Retrieve Op success.\n");
+							pa_disconnect(pa_ctx, mainloop);
+							return 0;
+						case NOT_READY:
+							// iterate again
+							fprintf(logfile, "Sink Retrieve Op in progress...\n");
+							pa_mainloop_iterate(mainloop, 1, NULL);
+							break;
+						case ERROR:
+							fprintf(logfile, "Sink Retrieve Op failed!\n");
+							return 1;	
 					}
 				}				
 				break;
@@ -140,9 +152,15 @@ int pa_get_sinklist(pa_device_t *output_devices) {
 				pa_disconnect(pa_ctx, mainloop);
 				return 1;
 				break;
+			default:
+				fprintf(logfile, "Unexpected pa_ready state! Exiting.");
+				return 1;
+				break;
+
 		}
 	}
 	
+	fprintf(logfile, "Timed out waiting for PulseAudio server ready state!");
     return 1;
     
 }

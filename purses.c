@@ -33,7 +33,7 @@ void print_devicelist(pa_device_t *devices, int size) {
 		ctr++;
 	}
 
-	if (!found)printw("No initialised devices found\n");
+	if (!found) printw("No initialised devices found\n");
 
 }
 
@@ -76,7 +76,7 @@ int main() {
 	// Get devices
 	get_devices();
 	refresh();
-	getch();
+	//getch();
 	
 	delwin(mainwin);
 
