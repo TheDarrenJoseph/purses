@@ -16,10 +16,8 @@ typedef struct pa_device {
 enum pa_state { NOT_READY, READY, ERROR };
 
 void pa_state_cb(pa_context* context, void* userdata);
-
 void print_devicelist(pa_device_t* devices, int size);
-
 void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void* userdata);
-
-int pa_get_sinklist(pa_device_t* output_devices);
-
+int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation* (*callback) (pa_context** pa_ctx, void* cb_userdata), void* userdata);
+int pa_get_sinklist(pa_device_t* output_devices, int* count);
+int pa_record_device(pa_device_t device);

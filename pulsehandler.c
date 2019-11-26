@@ -39,7 +39,6 @@ void pa_state_cb(pa_context *context, void *userdata) {
 void pa_sinklist_cb(pa_context *c, const pa_sink_info *sink_info, int eol, void *userdata) {
 	FILE* logfile = get_logfile();
     pa_device_t* pa_devicelist = userdata;
-    int ctr = 0;
 
     // If eol is set to a positive number, you're at the end of the list
     if (eol > 0) {
@@ -51,8 +50,8 @@ void pa_sinklist_cb(pa_context *c, const pa_sink_info *sink_info, int eol, void 
     // contents into it and we're done.  If we receive more than 16 devices,
     // they're going to get dropped.  You could make this dynamically allocate
     // space for the device list, but this is a simple example.
-    for (ctr = 0; ctr < DEVICE_MAX; ctr++) {
-		pa_device_t device = pa_devicelist[ctr];	
+    for (int i = 0; i < DEVICE_MAX; i++) {
+		pa_device_t device = pa_devicelist[i];	
 		// This is a guard against overwriting fetched devices
         if (!device.initialized) {
             if (strlen(sink_info -> name) > 0) {
@@ -60,7 +59,12 @@ void pa_sinklist_cb(pa_context *c, const pa_sink_info *sink_info, int eol, void 
 				strncpy(device.name, sink_info -> name, 511);
 				strncpy(device.description, sink_info -> description, 255);
 				device.initialized = 1;
-				fprintf(logfile, "Found device %d: %d, %s\n", ctr, device.index, device.name);
+				fprintf(logfile, "Found device %d: %d, %s\n", i, device.index, device.name);
+				
+				if (device.initialized) {
+					fprintf(logfile, "Initialized device %d\n", i);
+				}
+				pa_devicelist[i] = device;
 				return;
 			}
         }
@@ -106,6 +110,8 @@ pa_operation* get_sink_list(pa_context** pa_ctx, void* userdata) {
 	return pa_context_get_sink_info_list(*pa_ctx, pa_sinklist_cb, userdata);
 }
 
+
+// callback is our implementation function returning pa_operation
 int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation* (*callback) (pa_context** pa_ctx, void* cb_userdata), void* userdata) {
 	FILE* logfile = get_logfile();
 
@@ -132,16 +138,16 @@ int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation*
 					enum pa_state pa_op_state = check_pa_op(pa_op);
 					switch (pa_op_state) {
 						case READY:
-							fprintf(logfile, "Sink Retrieve Op success.\n");
+							fprintf(logfile, "Operation success.\n");
 							pa_disconnect(*pa_ctx, *mainloop);
 							return 0;
 						case NOT_READY:
 							// iterate again
-							fprintf(logfile, "Sink Retrieve Op in progress...\n");
+							fprintf(logfile, "Operation in progress...\n");
 							pa_mainloop_iterate(*mainloop, 1, NULL);
 							break;
 						case ERROR:
-							fprintf(logfile, "Sink Retrieve Op failed!\n");
+							fprintf(logfile, "Operation failed!\n");
 							return 1;	
 					}
 				}				
@@ -162,7 +168,7 @@ int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation*
 	return 1;
 }
 
-int pa_get_sinklist(pa_device_t *output_devices) {	
+int pa_get_sinklist(pa_device_t* output_devices, int* count) {	
 	FILE* logfile = get_logfile();
 	fprintf(logfile, "Retrieving PulseAudio Sinks...\n");
 
@@ -179,5 +185,53 @@ int pa_get_sinklist(pa_device_t *output_devices) {
 
 	perform_operation(&mainloop, &pa_ctx, get_sink_list, output_devices);
 	
+	int dev_count = 0;
+	for (int i=0; i < DEVICE_MAX; i++){
+		
+		pa_device_t device = output_devices[i];
+		if (device.initialized) {
+			dev_count++;
+		}
+	}
+	fprintf(logfile, "Retrieved %d Sink Devices...\n", dev_count);
+	(*count) = dev_count;
 	return 0;
 }
+
+int pa_record_device(pa_device_t device) {	
+	FILE* logfile = get_logfile();
+	fprintf(logfile, "Recording device: %s\n", device.name);
+
+    // Define our pulse audio loop and connection variables
+    pa_mainloop* mainloop = 0;
+    pa_mainloop_api* pa_mlapi = 0;
+    pa_context* pa_ctx = 0;
+	get_pa_context(&mainloop, &pa_mlapi, &pa_ctx);
+	
+	pa_context_connect(pa_ctx, NULL, 0 , NULL);
+	
+	static const pa_sample_spec mono_ss = {
+        .format = PA_SAMPLE_S16LE,
+        .rate = 44100,
+        .channels = 1
+    };
+	const pa_sample_spec * ss = &mono_ss;
+	pa_channel_map map;
+	//pa_channel_map_init(map);
+	pa_channel_map_init_mono(&map);
+	//pa_channel_map_init_mono(map);
+
+	// pa_stream_new for PCM
+	pa_stream* record_stream = pa_stream_new(pa_ctx, "purses record stream", ss, &map);
+	// register pa_stream_set_write_callback() and pa_stream_set_read_callback() to receive notifications that data can either be written or read. 
+
+	//  pa_stream_connect_record()
+	// int pa_stream_connect_record 	( 	pa_stream * s, const char *  	dev, const pa_buffer_attr *  	attr, pa_stream_flags_t  	flags ) 	
+
+	// Read with  pa_stream_peek() / pa_stream_drop() for record. Make sure you do not overflow the playback buffers as data will be dropped. 
+	fprintf(logfile, "Recording complete.");
+	pa_stream_disconnect(record_stream);
+
+	return 0;
+}
+

@@ -12,24 +12,24 @@ int println (char* format, va_list vlist) {
 	return vprintf(output, vlist);
 }
 
-void print_devicelist(pa_device_t *devices, int size) {
+void print_devicelist(pa_device_t* devices, int size) {
 	int ctr=1;
 	int found=0;
 	for (int i=0; i < size; i++) {
 		
-		pa_device_t device = devices[ctr];
+		pa_device_t device = devices[i];
 		int index = device.index;
 		char* description = device.description;
 		
 		if (device.initialized) {
-			printw("Initialised? #%d\n", device.initialized);
-			printw("Input Device #%d\n", ctr);
-			printw("Index: %d\n", device.index);
-			// printw("Description: %s\n", description);
+			printw("=== Device %d, %d ===\n", i+1, device.index);
+			printw("Initialised: %d\n", device.initialized);
+			printw("Input Device: %d\n", ctr);
+			printw("Description: %s\n", description);
 			printw("Name: %s\n", device.name);
 			printw("\n");
 			found = 1;
-		}
+		} 
 		ctr++;
 	}
 
@@ -37,20 +37,14 @@ void print_devicelist(pa_device_t *devices, int size) {
 
 }
 
-int get_devices() {
-  // This is where we'll store the input device list
-  //pa_devicelist_t pa_input_devicelist[16];
-  
-  // This is where we'll store the output device list
-  pa_device_t pa_output_devicelist[16];
-
-  int sink_list_stat = pa_get_sinklist(pa_output_devicelist);
+int get_devices(pa_device_t* device_list, int* count) {
+  int sink_list_stat = pa_get_sinklist(device_list, count);
+  printw("Retrieved %d Sink Devices...\n", (*count));
 
   if(sink_list_stat != 0) {
   	printw("Failed to fetch PulseAudio devices!");
 	return 1;
   }  else {
-	print_devicelist(pa_output_devicelist, 16);
 	return 0;
   }
 }
@@ -72,25 +66,28 @@ int main() {
 	printw("Loading sinks...\n");
 	refresh();
 	
-
 	// Get devices
-	get_devices();
+
+	// This is where we'll store the input device list
+	//pa_devicelist_t pa_input_devicelist[16];
+
+	// This is where we'll store the output device list
+	pa_device_t pa_output_devicelist[16];
+
+	int count = 0;
+	int dev_stat = get_devices(pa_output_devicelist, &count);
+	if (dev_stat == 0) print_devicelist(pa_output_devicelist, 16);
+	
 	refresh();
 	//getch();
 	
-	delwin(mainwin);
-
-	// Create a record stream
-	// pa_stream_new for PCM
-	//pa_stream record_stream = pa_stream_new()
+	pa_device_t main_device = pa_output_devicelist[0];
+	pa_record_device(main_device);
+	printw("Recording complete...\n");
+	refresh();
+	getch();
 	
-	// register pa_stream_set_write_callback() and pa_stream_set_read_callback() to receive notifications that data can either be written or read. 
-
-
-
-	//  pa_stream_connect_record()
-
-	// Read with  pa_stream_peek() / pa_stream_drop() for record. Make sure you do not overflow the playback buffers as data will be dropped. 
+	delwin(mainwin);
 	
 	endwin();
 	close_logfile();
