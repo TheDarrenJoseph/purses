@@ -95,6 +95,13 @@ void pa_disconnect(pa_context* pa_ctx, pa_mainloop *mainloop) {
 }
 
 
+void get_pa_context(pa_mainloop** mainloop, pa_mainloop_api** pa_mlapi, pa_context** pa_ctx) {
+    // Define our pulse audio loop and connection variables
+    *mainloop = pa_mainloop_new();
+    *pa_mlapi = pa_mainloop_get_api(*mainloop);
+    *pa_ctx = pa_context_new(*pa_mlapi, "test"); 
+}
+
 int pa_get_sinklist(pa_device_t *output_devices) {	
 	FILE* logfile = get_logfile();
 	fprintf(logfile, "Retrieving PulseAudio Sinks...\n");
@@ -103,20 +110,19 @@ int pa_get_sinklist(pa_device_t *output_devices) {
     memset(output_devices, 0, sizeof(pa_device_t) * DEVICE_MAX);
 
     // Define our pulse audio loop and connection variables
-    pa_mainloop* mainloop = pa_mainloop_new();
-    pa_mainloop_api* pa_mlapi = pa_mainloop_get_api(mainloop);
-    pa_context* pa_ctx = pa_context_new(pa_mlapi, "test"); 
-	    
-    pa_operation* pa_op;
-	  
+    pa_mainloop* mainloop = 0;
+    pa_mainloop_api* pa_mlapi = 0;
+    pa_context* pa_ctx = 0;
+	get_pa_context(&mainloop, &pa_mlapi, &pa_ctx);
+	
     pa_context_connect(pa_ctx, NULL, 0 , NULL);
     
     // We'll need these state variables to keep track of our requests
     int pa_ready = 0;
-    bool context_set = false;
-    
 	pa_context_set_state_callback(pa_ctx, pa_state_cb, &pa_ready);
-	
+
+    bool context_set = false;
+    pa_operation* pa_op;
 	for (int iterations=0; iterations < MAX_ITERATIONS; iterations++) {		
 		//printf("PA Ready state is: %d\n", pa_ready);
 		switch (pa_ready) {

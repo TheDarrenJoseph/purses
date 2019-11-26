@@ -80,10 +80,13 @@ int main() {
 	
 	delwin(mainwin);
 
-	// register pa_stream_set_write_callback() and pa_stream_set_read_callback() to receive notifications that data can either be written or read. 
-
 	// Create a record stream
 	// pa_stream_new for PCM
+	//pa_stream record_stream = pa_stream_new()
+	
+	// register pa_stream_set_write_callback() and pa_stream_set_read_callback() to receive notifications that data can either be written or read. 
+
+
 
 	//  pa_stream_connect_record()
 
