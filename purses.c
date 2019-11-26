@@ -7,7 +7,7 @@
 #include <pulsehandler.h>
 #include <shared.h>
 
-int println (const char *format, va_list vlist) {
+int println (char* format, va_list vlist) {
 	char* output = strcat(format, "\n");
 	return vprintf(output, vlist);
 }

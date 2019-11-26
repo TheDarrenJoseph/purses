@@ -88,7 +88,7 @@ enum pa_state check_pa_op( pa_operation* pa_op) {
 	return ERROR;
 }
 
-void pa_disconnect(pa_context* pa_ctx, pa_mainloop *mainloop) {
+void pa_disconnect(pa_context* pa_ctx, pa_mainloop* mainloop) {
 	pa_context_disconnect(pa_ctx);
 	pa_context_unref(pa_ctx);
 	pa_mainloop_free(mainloop);
@@ -100,6 +100,66 @@ void get_pa_context(pa_mainloop** mainloop, pa_mainloop_api** pa_mlapi, pa_conte
     *mainloop = pa_mainloop_new();
     *pa_mlapi = pa_mainloop_get_api(*mainloop);
     *pa_ctx = pa_context_new(*pa_mlapi, "test"); 
+}
+
+pa_operation* get_sink_list(pa_context** pa_ctx, void* userdata) {
+	return pa_context_get_sink_info_list(*pa_ctx, pa_sinklist_cb, userdata);
+}
+
+int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation* (*callback) (pa_context** pa_ctx, void* cb_userdata), void* userdata) {
+	FILE* logfile = get_logfile();
+
+	 // We'll need these state variables to keep track of our requests
+	int pa_ready = 0;
+	pa_context_set_state_callback(*pa_ctx, pa_state_cb, &pa_ready);
+
+	bool context_set = false;
+	pa_operation* pa_op;
+	for (int iterations=0; iterations < MAX_ITERATIONS; iterations++) {		
+		//printf("PA Ready state is: %d\n", pa_ready);
+		switch (pa_ready) {
+			case NOT_READY:
+				fprintf(logfile, "PA Not ready, iterating.. %d\n", iterations);
+				pa_mainloop_iterate(*mainloop, 1, NULL);
+				break;
+			case READY:
+				if (!context_set) {
+					fprintf(logfile, "Getting sink info list...\n");
+					//pa_op = pa_context_get_sink_info_list(pa_ctx, pa_sinklist_cb, output_devices);
+					pa_op = (*callback)(pa_ctx, userdata);
+					context_set = true;
+				} else {
+					enum pa_state pa_op_state = check_pa_op(pa_op);
+					switch (pa_op_state) {
+						case READY:
+							fprintf(logfile, "Sink Retrieve Op success.\n");
+							pa_disconnect(*pa_ctx, *mainloop);
+							return 0;
+						case NOT_READY:
+							// iterate again
+							fprintf(logfile, "Sink Retrieve Op in progress...\n");
+							pa_mainloop_iterate(*mainloop, 1, NULL);
+							break;
+						case ERROR:
+							fprintf(logfile, "Sink Retrieve Op failed!\n");
+							return 1;	
+					}
+				}				
+				break;
+			case ERROR:
+				fprintf(logfile, "PA Context encountered an error!\n");
+				pa_disconnect(*pa_ctx, *mainloop);
+				return 1;
+				break;
+			default:
+				fprintf(logfile, "Unexpected pa_ready state! Exiting.");
+				return 1;
+				break;
+
+		}
+	}
+	fprintf(logfile, "Timed out waiting for PulseAudio server ready state!");
+	return 1;
 }
 
 int pa_get_sinklist(pa_device_t *output_devices) {	
@@ -115,58 +175,9 @@ int pa_get_sinklist(pa_device_t *output_devices) {
     pa_context* pa_ctx = 0;
 	get_pa_context(&mainloop, &pa_mlapi, &pa_ctx);
 	
-    pa_context_connect(pa_ctx, NULL, 0 , NULL);
-    
-    // We'll need these state variables to keep track of our requests
-    int pa_ready = 0;
-	pa_context_set_state_callback(pa_ctx, pa_state_cb, &pa_ready);
+	pa_context_connect(pa_ctx, NULL, 0 , NULL);
 
-    bool context_set = false;
-    pa_operation* pa_op;
-	for (int iterations=0; iterations < MAX_ITERATIONS; iterations++) {		
-		//printf("PA Ready state is: %d\n", pa_ready);
-		switch (pa_ready) {
-			case NOT_READY:
-				fprintf(logfile, "PA Not ready, iterating.. %d\n", iterations);
-				pa_mainloop_iterate(mainloop, 1, NULL);
-				break;
-			case READY:
-				if (!context_set) {
-					fprintf(logfile, "Getting sink info list...\n");
-					pa_op = pa_context_get_sink_info_list(pa_ctx, pa_sinklist_cb, output_devices);
-					context_set = true;
-				} else {
-					enum pa_state pa_op_state = check_pa_op(pa_op);
-					switch (pa_op_state) {
-						case READY:
-							fprintf(logfile, "Sink Retrieve Op success.\n");
-							pa_disconnect(pa_ctx, mainloop);
-							return 0;
-						case NOT_READY:
-							// iterate again
-							fprintf(logfile, "Sink Retrieve Op in progress...\n");
-							pa_mainloop_iterate(mainloop, 1, NULL);
-							break;
-						case ERROR:
-							fprintf(logfile, "Sink Retrieve Op failed!\n");
-							return 1;	
-					}
-				}				
-				break;
-			case ERROR:
-				fprintf(logfile, "PA Context encountered an error!\n");
-				pa_disconnect(pa_ctx, mainloop);
-				return 1;
-				break;
-			default:
-				fprintf(logfile, "Unexpected pa_ready state! Exiting.");
-				return 1;
-				break;
-
-		}
-	}
+	perform_operation(&mainloop, &pa_ctx, get_sink_list, output_devices);
 	
-	fprintf(logfile, "Timed out waiting for PulseAudio server ready state!");
-    return 1;
-    
+	return 0;
 }
