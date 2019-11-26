@@ -21,5 +21,5 @@ void print_devicelist(pa_device_t* devices, int size);
 
 void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void* userdata);
 
-int pa_get_devicelist(pa_device_t* output_devices);
+int pa_get_sinklist(pa_device_t* output_devices);
 

@@ -1,2 +1,2 @@
 #!/bin/sh
-gcc -Wall purses.c pulsehandler.c -l ncurses -l pulse -I .
+gcc -Wall purses.c pulsehandler.c shared.c -l ncurses -l pulse -I .
