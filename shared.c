@@ -13,6 +13,7 @@ FILE* get_logfile() {
 
 int close_logfile() {
 	if (logfile != 0) {
+		fflush(logfile);
 		return fclose(logfile);
 	} else {
 		return 0;

@@ -12,8 +12,17 @@
 
 int sink_count = 0;
 
-void pa_state_cb(pa_context *context, void *userdata) {
+// Signed 16 integer bit PCM, little endian
+// 44100 Hz
+// Single channel (mono) to ease processing
+static const pa_sample_spec mono_ss = {
+	.format = PA_SAMPLE_S16LE,
+	.rate = 44100,
+	.channels = 1
+};
 
+// Handles context state change and sets userdata to our more generic pa_state
+void pa_context_state_cb(struct pa_context* context, void* userdata) {
 	// assign an int ptr to our void ptr to set type for deref
 	enum pa_state* pa_stat = userdata;
      
@@ -33,10 +42,32 @@ void pa_state_cb(pa_context *context, void *userdata) {
 	}	
 }
 
+
+// Handles stream state change and sets userdata to our more generic pa_state
+void pa_stream_state_cb(struct pa_stream* stream, void* userdata) {
+	// assign an int ptr to our void ptr to set type for deref
+	enum pa_state* pa_stat = userdata;
+     
+    pa_stream_state_t pa_stream_state = pa_stream_get_state(stream);
+	//printf("PA Context State is: %d\n", * pa_stat);
+	switch  (pa_stream_state) {
+		default:
+			*pa_stat = NOT_READY;
+			break;
+		case PA_STREAM_FAILED:
+		case PA_STREAM_TERMINATED:
+			*pa_stat = ERROR;
+			break;
+		case PA_STREAM_READY:
+			*pa_stat = READY;
+			break;
+	}	
+}
+
 // pa_mainloop will call this function when it's ready to tell us about a sink.
 // Since we're not threading, there's no need for mutexes on the devicelist
 // structure
-void pa_sinklist_cb(pa_context *c, const pa_sink_info *sink_info, int eol, void *userdata) {
+void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void* userdata) {
 	FILE* logfile = get_logfile();
     pa_device_t* pa_devicelist = userdata;
 
@@ -99,11 +130,11 @@ void pa_disconnect(pa_context* pa_ctx, pa_mainloop* mainloop) {
 }
 
 
-void get_pa_context(pa_mainloop** mainloop, pa_mainloop_api** pa_mlapi, pa_context** pa_ctx) {
+void get_pa_context(char* context_name, pa_mainloop** mainloop, pa_mainloop_api** pa_mlapi, pa_context** pa_ctx) {
     // Define our pulse audio loop and connection variables
     *mainloop = pa_mainloop_new();
     *pa_mlapi = pa_mainloop_get_api(*mainloop);
-    *pa_ctx = pa_context_new(*pa_mlapi, "test"); 
+    *pa_ctx = pa_context_new(*pa_mlapi, context_name); 
 }
 
 pa_operation* get_sink_list(pa_context** pa_ctx, void* userdata) {
@@ -117,15 +148,15 @@ int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation*
 
 	 // We'll need these state variables to keep track of our requests
 	int pa_ready = 0;
-	pa_context_set_state_callback(*pa_ctx, pa_state_cb, &pa_ready);
+	pa_context_set_state_callback(*pa_ctx, pa_context_state_cb, &pa_ready);
 
 	bool context_set = false;
 	pa_operation* pa_op;
-	for (int iterations=0; iterations < MAX_ITERATIONS; iterations++) {		
+	for (int i=0; i < MAX_ITERATIONS; i++) {		
 		//printf("PA Ready state is: %d\n", pa_ready);
 		switch (pa_ready) {
 			case NOT_READY:
-				fprintf(logfile, "PA Not ready, iterating.. %d\n", iterations);
+				fprintf(logfile, "PA Not ready, iterating.. %d\n", i);
 				pa_mainloop_iterate(*mainloop, 1, NULL);
 				break;
 			case READY:
@@ -156,15 +187,126 @@ int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation*
 				fprintf(logfile, "PA Context encountered an error!\n");
 				pa_disconnect(*pa_ctx, *mainloop);
 				return 1;
-				break;
 			default:
-				fprintf(logfile, "Unexpected pa_ready state! Exiting.");
+				fprintf(logfile, "Unexpected pa_ready state! Exiting.\n");
 				return 1;
-				break;
 
 		}
 	}
-	fprintf(logfile, "Timed out waiting for PulseAudio server ready state!");
+	fprintf(logfile, "Timed out waiting for PulseAudio server ready state!\n");
+	return 1;
+}
+
+void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {	
+	return;
+	FILE* logfile = get_logfile();
+
+	// Print and flush in case this takes time
+	fprintf(logfile, "Reading stream...\n");
+	fflush(logfile);
+	
+	// Peek to read each fragment from the buffer
+	
+	const void** data = 0;
+	pa_stream_peek(read_stream, data, &nbytes);
+	
+	if (data == NULL) {
+		if (nbytes == 0) {
+			fprintf(logfile, "No data from read stream!...\n");
+			return;
+		} else {
+			// Data hole, call drop to pull it from the buffer 
+			// and move the read index forward
+			fprintf(logfile, "Read stream data hole, dropping hole data...\n");
+			pa_stream_drop(read_stream);
+		}
+		
+	} else {
+		fprintf(logfile, "Reading stream of %ld bytes\n", nbytes);
+		
+		for (long int i=0; i < nbytes; i++) {
+			fprintf(logfile, "Reading stream %ld/%ld\n", i, nbytes);
+			const int* data_p = (*data);
+			// Our format should correspond to signed int of minimum 16 bits
+			signed int i_data = data_p[i];
+			fprintf(logfile, "-%ld,%d-", i , i_data);
+			fflush(logfile);
+		}
+	}
+	
+}
+
+int perform_read(const char* device_name, pa_mainloop** mainloop, pa_context** pa_ctx, int* stream_read_data, int* mainloop_retval ) {
+	FILE* logfile = get_logfile();
+	
+	const pa_sample_spec * ss = &mono_ss;
+	pa_channel_map map;
+	pa_channel_map_init_mono(&map);
+
+	// pa_stream_new for PCM
+	fprintf(logfile, "Initialising PA Stream for device: %s\n", device_name);
+	pa_stream* record_stream = pa_stream_new((*pa_ctx), "purses record stream", ss, &map);
+	
+	// register pa_stream_set_write_callback() and pa_stream_set_read_callback() to receive notifications that data can either be written or read. 
+	pa_stream_set_read_callback(record_stream, read_stream_cb, stream_read_data);
+	
+	// This connects to the PulseAudio server to read 
+	// from the device to our stream
+	fprintf(logfile, "Connecting stream for device: %s\n", device_name);
+	int connect_stat = pa_stream_connect_record(record_stream, device_name, NULL, 0);
+	
+	if (connect_stat != 0) {
+		fprintf(logfile, "Failed to connect recording stream for device: %s!\n", device_name);
+		return 1;
+	}
+	
+	// register stream state callback
+	enum pa_state stream_state = NOT_READY;
+	pa_stream_set_state_callback(record_stream, pa_stream_state_cb, &stream_state);
+	
+	fprintf(logfile, "Starting mainloop to stream device: %s\n", device_name);
+	fflush(logfile);
+		
+	int success_state = 0;
+	int mainloop_state = 0;
+	while (success_state == 0) {	
+		switch (stream_state) {
+			case NOT_READY:
+				//fprintf(logfile, "PA stream not ready, iterating %d/%d \n", iterations, MAX_ITERATIONS);
+				mainloop_state = pa_mainloop_iterate(*mainloop, 1, mainloop_retval);
+				break;
+			case READY: 
+				fprintf(logfile, "PA stream ready..\n");
+				for (int i=0; i< MAX_ITERATIONS; i++) {
+					fprintf(logfile, "Iterating to read READY stream:  %d/%d \n", i, MAX_ITERATIONS);
+					fflush(logfile);
+					mainloop_state = pa_mainloop_iterate(*mainloop, 1, mainloop_retval);
+				}
+				return 0;
+			case ERROR:
+				fprintf(logfile, "PA stream encountered an error!\n");
+				//exit(1);
+				pa_disconnect(*pa_ctx, *mainloop);
+				pa_stream_disconnect(record_stream);
+				success_state = 1;
+			default:
+				fprintf(logfile, "Unexpected state! %d\n", stream_state);
+				success_state = 1;
+		}		
+		
+		// Mainloop blocks for events on manual iter without us checking this
+		if (mainloop_state <= 0) {
+			int retval = (*mainloop_retval);
+			fprintf(logfile, "Mainloop exited with status: %d \n", mainloop_state);
+			return retval;
+		} else {
+			fprintf(logfile, "Mainloop dispatched %d sources\n", mainloop_state);
+		}
+		
+		fflush(logfile);
+	}
+	
+	//fprintf(logfile, "Timed out waiting for PulseAudio stream ready state!\n");
 	return 1;
 }
 
@@ -179,7 +321,7 @@ int pa_get_sinklist(pa_device_t* output_devices, int* count) {
     pa_mainloop* mainloop = 0;
     pa_mainloop_api* pa_mlapi = 0;
     pa_context* pa_ctx = 0;
-	get_pa_context(&mainloop, &pa_mlapi, &pa_ctx);
+	get_pa_context("sink-list", &mainloop, &pa_mlapi, &pa_ctx);
 	
 	pa_context_connect(pa_ctx, NULL, 0 , NULL);
 
@@ -204,34 +346,25 @@ int pa_record_device(pa_device_t device) {
 
     // Define our pulse audio loop and connection variables
     pa_mainloop* mainloop = 0;
+    int mainloop_retval = 0;
     pa_mainloop_api* pa_mlapi = 0;
     pa_context* pa_ctx = 0;
-	get_pa_context(&mainloop, &pa_mlapi, &pa_ctx);
+	get_pa_context("visualiser-pcm-recording", &mainloop, &pa_mlapi, &pa_ctx);
 	
 	pa_context_connect(pa_ctx, NULL, 0 , NULL);
+		
+	// Allow 512 bytes back per read
+	int* stream_read_data = malloc ( 512 * sizeof(int));
+	int read_stat = perform_read(device.name, &mainloop, &pa_ctx, stream_read_data, &mainloop_retval);
 	
-	static const pa_sample_spec mono_ss = {
-        .format = PA_SAMPLE_S16LE,
-        .rate = 44100,
-        .channels = 1
-    };
-	const pa_sample_spec * ss = &mono_ss;
-	pa_channel_map map;
-	//pa_channel_map_init(map);
-	pa_channel_map_init_mono(&map);
-	//pa_channel_map_init_mono(map);
-
-	// pa_stream_new for PCM
-	pa_stream* record_stream = pa_stream_new(pa_ctx, "purses record stream", ss, &map);
-	// register pa_stream_set_write_callback() and pa_stream_set_read_callback() to receive notifications that data can either be written or read. 
-
-	//  pa_stream_connect_record()
-	// int pa_stream_connect_record 	( 	pa_stream * s, const char *  	dev, const pa_buffer_attr *  	attr, pa_stream_flags_t  	flags ) 	
-
-	// Read with  pa_stream_peek() / pa_stream_drop() for record. Make sure you do not overflow the playback buffers as data will be dropped. 
-	fprintf(logfile, "Recording complete.");
-	pa_stream_disconnect(record_stream);
-
+	if (read_stat == 0) {
+		fprintf(logfile, "Recording complete.");
+	} else {
+		fprintf(logfile, "Recording failed!");
+	}
+	
+	fflush(logfile);
+    free(stream_read_data);
 	return 0;
 }
 

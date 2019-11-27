@@ -18,7 +18,7 @@ void print_devicelist(pa_device_t* devices, int size) {
 	for (int i=0; i < size; i++) {
 		
 		pa_device_t device = devices[i];
-		int index = device.index;
+		//int index = device.index;
 		char* description = device.description;
 		
 		if (device.initialized) {
@@ -79,16 +79,16 @@ int main() {
 	if (dev_stat == 0) print_devicelist(pa_output_devicelist, 16);
 	
 	refresh();
-	//getch();
+
 	
 	pa_device_t main_device = pa_output_devicelist[0];
 	pa_record_device(main_device);
 	printw("Recording complete...\n");
 	refresh();
-	getch();
+	//wgetch(mainwin);
+	//getch();
 	
 	delwin(mainwin);
-	
 	endwin();
 	close_logfile();
 	// exit with success status code
