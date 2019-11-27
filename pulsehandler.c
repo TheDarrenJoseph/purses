@@ -119,9 +119,10 @@ enum pa_state check_pa_op( pa_operation* pa_op) {
 			// Once it's done we can unref/cancel it
 			pa_operation_unref(pa_op);
 			return ERROR;
+		default:
+			pa_operation_unref(pa_op);
+			return ERROR;
 	}
-	
-	return ERROR;
 }
 
 void pa_disconnect(pa_context* pa_ctx, pa_mainloop* mainloop) {
@@ -171,56 +172,62 @@ FILE* logfile = get_logfile();
 	return 1;
 }
 
+int await_operation(pa_mainloop** mainloop, pa_operation** pa_op) {
+	FILE* logfile = get_logfile();
+	
+	enum pa_state pa_op_state = NOT_READY;
+	for (int i=0; i < MAX_ITERATIONS; i++) {		
+		pa_op_state = check_pa_op(*pa_op);
+		switch (pa_op_state) {
+			case READY:
+				fprintf(logfile, "Operation success.\n");
+				return 0;
+			case NOT_READY:
+				// iterate again
+				fprintf(logfile, "Operation in progress...\n");
+				pa_mainloop_iterate(*mainloop, 1, NULL);
+				break;
+			case ERROR:
+				fprintf(logfile, "Operation failed!\n");
+				return 1;	
+		}
+		fflush(logfile);
+	}
+	fprintf(logfile, "Timed out waiting for a PulseAudio operation to complete.\n");
+	return 1;
+}
+
 // callback is our implementation function returning pa_operation
 int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation* (*callback) (pa_context** pa_ctx, void* cb_userdata), void* userdata) {
 	FILE* logfile = get_logfile();
-
-	 // We'll need these state variables to keep track of our requests
-	int pa_ready = 0;
-	pa_context_set_state_callback(*pa_ctx, pa_context_state_cb, &pa_ready);
-
-	bool context_set = false;
-	pa_operation* pa_op;
-	for (int i=0; i < MAX_ITERATIONS; i++) {		
-		//printf("PA Ready state is: %d\n", pa_ready);
-		switch (pa_ready) {
-			case NOT_READY:
-				fprintf(logfile, "PA Not ready, iterating.. %d\n", i);
-				pa_mainloop_iterate(*mainloop, 1, NULL);
-				break;
-			case READY:
-				if (!context_set) {
-					fprintf(logfile, "Getting sink info list...\n");
-					//pa_op = pa_context_get_sink_info_list(pa_ctx, pa_sinklist_cb, output_devices);
-					pa_op = (*callback)(pa_ctx, userdata);
-					context_set = true;
-				} else {
-					enum pa_state pa_op_state = check_pa_op(pa_op);
-					switch (pa_op_state) {
-						case READY:
-							fprintf(logfile, "Operation success.\n");
-							return 0;
-						case NOT_READY:
-							// iterate again
-							fprintf(logfile, "Operation in progress...\n");
-							pa_mainloop_iterate(*mainloop, 1, NULL);
-							break;
-						case ERROR:
-							fprintf(logfile, "Operation failed!\n");
-							return 1;	
-					}
-				}				
-				break;
-			case ERROR:
-				fprintf(logfile, "PA Context encountered an error!\n");
-				return 1;
-			default:
-				fprintf(logfile, "Unexpected pa_ready state! Exiting.\n");
-				return 1;
-
-		}
+	
+	int await_stat = await_context_ready(mainloop, pa_ctx);
+	if (await_stat != 0) {
+		fprintf(logfile, "Awaiting PA Context Ready returned failure code: %d\n", await_stat);
+		return 1;
 	}
-	fprintf(logfile, "Timed out waiting for PulseAudio server ready state!\n");
+	
+	bool context_set = false;
+	pa_operation* pa_op = 0;
+	for (int i=0; i < MAX_ITERATIONS; i++) {		
+		if (!context_set) {
+			fprintf(logfile, "Performing operation...\n");
+			pa_op = (*callback)(pa_ctx, userdata);
+			context_set = true;
+		} 
+		
+		if (context_set && pa_op != 0) {
+			fprintf(logfile, "Awaiting operation completion...\n");
+			int await_op_stat = await_operation(mainloop, &pa_op);
+			if (await_op_stat != 0) {
+				fprintf(logfile, "Awaiting PA Operation returned failure code: %d\n", await_stat);
+				return 1;
+			} else {
+				return 0;
+			}
+		}				
+	}
+	fprintf(logfile, "Timed out while performing an operation!\n");
 	return 1;
 }
 
