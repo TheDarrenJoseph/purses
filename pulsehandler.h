@@ -9,6 +9,7 @@
 typedef struct pa_device {
 	uint8_t initialized;
 	char name[512];
+	char monitor_source_name[512];
 	uint32_t index;
 	char description[256];
 } pa_device_t;

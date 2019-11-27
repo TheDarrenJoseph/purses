@@ -88,9 +88,10 @@ void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void*
             if (strlen(sink_info -> name) > 0) {
 				device.index = sink_info -> index;
 				strncpy(device.name, sink_info -> name, 511);
+				strncpy(device.monitor_source_name, sink_info -> monitor_source_name, 511);
 				strncpy(device.description, sink_info -> description, 255);
 				device.initialized = 1;
-				fprintf(logfile, "Found device %d: %d, %s\n", i, device.index, device.name);
+				fprintf(logfile, "Found device %d, Index %d, Name: %s\n", i, device.index, device.name);
 				
 				if (device.initialized) {
 					fprintf(logfile, "Initialized device %d\n", i);
@@ -142,6 +143,34 @@ pa_operation* get_sink_list(pa_context** pa_ctx, void* userdata) {
 }
 
 
+int await_context_ready(pa_mainloop** mainloop, pa_context** pa_ctx) {
+FILE* logfile = get_logfile();
+
+	// This hooks up a callback to set pa_ready/keep this int updated
+	int pa_ready = 0;
+	pa_context_set_state_callback(*pa_ctx, pa_context_state_cb, &pa_ready);
+	for (int i=0; i < MAX_ITERATIONS; i++) {		
+		//printf("PA Ready state is: %d\n", pa_ready);
+		switch (pa_ready) {
+			case NOT_READY:
+				fprintf(logfile, "PA Not ready, iterating.. %d\n", i);
+				pa_mainloop_iterate(*mainloop, 1, NULL);
+				break;
+			case READY:
+				return 0;
+			case ERROR:
+				fprintf(logfile, "PA Context encountered an error!\n");
+				return 1;
+			default:
+				fprintf(logfile, "Unexpected pa_ready state! Exiting.\n");
+				return 1;
+
+		}
+	}
+	fprintf(logfile, "Timed out waiting for PulseAudio server ready state!\n");
+	return 1;
+}
+
 // callback is our implementation function returning pa_operation
 int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation* (*callback) (pa_context** pa_ctx, void* cb_userdata), void* userdata) {
 	FILE* logfile = get_logfile();
@@ -170,7 +199,6 @@ int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation*
 					switch (pa_op_state) {
 						case READY:
 							fprintf(logfile, "Operation success.\n");
-							pa_disconnect(*pa_ctx, *mainloop);
 							return 0;
 						case NOT_READY:
 							// iterate again
@@ -185,7 +213,6 @@ int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation*
 				break;
 			case ERROR:
 				fprintf(logfile, "PA Context encountered an error!\n");
-				pa_disconnect(*pa_ctx, *mainloop);
 				return 1;
 			default:
 				fprintf(logfile, "Unexpected pa_ready state! Exiting.\n");
@@ -236,8 +263,19 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 	
 }
 
-int perform_read(const char* device_name, pa_mainloop** mainloop, pa_context** pa_ctx, int* stream_read_data, int* mainloop_retval ) {
+void pa_stream_success_cb(pa_stream *stream, int success, void *userdata) {
 	FILE* logfile = get_logfile();
+	fprintf(logfile, "Stream success: %d", success);
+}
+
+int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, pa_context** pa_ctx, int* stream_read_data, int* mainloop_retval ) {
+	FILE* logfile = get_logfile();
+	
+	int await_stat = await_context_ready(mainloop, pa_ctx);
+	if (await_stat != 0) {
+		fprintf(logfile, "Awaiting PA Context Ready returned failure code: %d\n", await_stat);
+		return 1;
+	}
 	
 	const pa_sample_spec * ss = &mono_ss;
 	pa_channel_map map;
@@ -246,24 +284,29 @@ int perform_read(const char* device_name, pa_mainloop** mainloop, pa_context** p
 	// pa_stream_new for PCM
 	fprintf(logfile, "Initialising PA Stream for device: %s\n", device_name);
 	pa_stream* record_stream = pa_stream_new((*pa_ctx), "purses record stream", ss, &map);
-	
-	// register pa_stream_set_write_callback() and pa_stream_set_read_callback() to receive notifications that data can either be written or read. 
-	pa_stream_set_read_callback(record_stream, read_stream_cb, stream_read_data);
-	
-	// This connects to the PulseAudio server to read 
-	// from the device to our stream
-	fprintf(logfile, "Connecting stream for device: %s\n", device_name);
-	int connect_stat = pa_stream_connect_record(record_stream, device_name, NULL, 0);
-	
-	if (connect_stat != 0) {
-		fprintf(logfile, "Failed to connect recording stream for device: %s!\n", device_name);
-		return 1;
-	}
-	
-	// register stream state callback
+	// register callbacks before connecting
 	enum pa_state stream_state = NOT_READY;
 	pa_stream_set_state_callback(record_stream, pa_stream_state_cb, &stream_state);
-	
+	pa_stream_set_read_callback(record_stream, read_stream_cb, stream_read_data);
+
+	// This connects to the PulseAudio server to read 
+	// from the device to our stream
+	pa_stream_flags_t stream_flags = PA_STREAM_START_CORKED;
+	int monitor_stream_stat = pa_stream_set_monitor_stream(record_stream, sink_idx);
+	if (monitor_stream_stat == 0) {
+		fprintf(logfile, "Connecting stream for device: %s\n", device_name);
+		int connect_stat = pa_stream_connect_record(record_stream, device_name, NULL, stream_flags);
+		if (connect_stat < 0) {
+			const char* error = pa_strerror(connect_stat); 
+			fprintf(logfile, "Failed to connect recording stream for device: %s, status: %d, error: %s\n", device_name, connect_stat, error);
+			return 1;
+		}
+	} else {
+		const char* error = pa_strerror(monitor_stream_stat); 
+		fprintf(logfile, "Failed to set monitor stream for recording, status: %d,  error: %s\n", monitor_stream_stat, error);
+		return 1;
+	}
+		
 	fprintf(logfile, "Starting mainloop to stream device: %s\n", device_name);
 	fflush(logfile);
 		
@@ -273,21 +316,20 @@ int perform_read(const char* device_name, pa_mainloop** mainloop, pa_context** p
 		switch (stream_state) {
 			case NOT_READY:
 				//fprintf(logfile, "PA stream not ready, iterating %d/%d \n", iterations, MAX_ITERATIONS);
-				mainloop_state = pa_mainloop_iterate(*mainloop, 1, mainloop_retval);
+				mainloop_state = pa_mainloop_iterate(*mainloop, 0, mainloop_retval);
 				break;
 			case READY: 
 				fprintf(logfile, "PA stream ready..\n");
+				// Resume the stream now it's ready
+				pa_stream_cork(record_stream, 0, pa_stream_success_cb, mainloop);
+				
 				for (int i=0; i< MAX_ITERATIONS; i++) {
 					fprintf(logfile, "Iterating to read READY stream:  %d/%d \n", i, MAX_ITERATIONS);
 					fflush(logfile);
-					mainloop_state = pa_mainloop_iterate(*mainloop, 1, mainloop_retval);
+					mainloop_state = pa_mainloop_iterate(*mainloop, 0, mainloop_retval);
 				}
-				return 0;
 			case ERROR:
 				fprintf(logfile, "PA stream encountered an error!\n");
-				//exit(1);
-				pa_disconnect(*pa_ctx, *mainloop);
-				pa_stream_disconnect(record_stream);
 				success_state = 1;
 			default:
 				fprintf(logfile, "Unexpected state! %d\n", stream_state);
@@ -298,6 +340,7 @@ int perform_read(const char* device_name, pa_mainloop** mainloop, pa_context** p
 		if (mainloop_state <= 0) {
 			int retval = (*mainloop_retval);
 			fprintf(logfile, "Mainloop exited with status: %d \n", mainloop_state);
+			pa_stream_disconnect(record_stream);
 			return retval;
 		} else {
 			fprintf(logfile, "Mainloop dispatched %d sources\n", mainloop_state);
@@ -307,6 +350,7 @@ int perform_read(const char* device_name, pa_mainloop** mainloop, pa_context** p
 	}
 	
 	//fprintf(logfile, "Timed out waiting for PulseAudio stream ready state!\n");
+	pa_stream_disconnect(record_stream);
 	return 1;
 }
 
@@ -326,7 +370,8 @@ int pa_get_sinklist(pa_device_t* output_devices, int* count) {
 	pa_context_connect(pa_ctx, NULL, 0 , NULL);
 
 	perform_operation(&mainloop, &pa_ctx, get_sink_list, output_devices);
-	
+	pa_disconnect(pa_ctx, mainloop);
+
 	int dev_count = 0;
 	for (int i=0; i < DEVICE_MAX; i++){
 		
@@ -355,8 +400,9 @@ int pa_record_device(pa_device_t device) {
 		
 	// Allow 512 bytes back per read
 	int* stream_read_data = malloc ( 512 * sizeof(int));
-	int read_stat = perform_read(device.name, &mainloop, &pa_ctx, stream_read_data, &mainloop_retval);
-	
+	int read_stat = perform_read(device.monitor_source_name, device.index, &mainloop, &pa_ctx, stream_read_data, &mainloop_retval);
+	pa_disconnect(pa_ctx, mainloop);
+
 	if (read_stat == 0) {
 		fprintf(logfile, "Recording complete.");
 	} else {
