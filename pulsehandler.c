@@ -271,47 +271,56 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 	size_t initial_nbytes = nbytes;
 	
 	// Print and flush in case this takes time
-	fprintf(logfile, "Reading stream...\n");
+	fprintf(logfile, "Reading stream of %ld bytes\n", initial_nbytes);
 	fflush(logfile);
 	
-	size_t read_bytes = 0;
 	if (nbytes > 0) {
-		fprintf(logfile, "Reading stream of %ld bytes\n", initial_nbytes);
+		size_t total_bytes = 0;
+		size_t read_bytes = 0;
 		while (read_bytes < nbytes) {
 			//pa_stream_readable_size() ???
 			
-			// Peek to read each fragment from the buffer
+			// Peek to read each fragment from the buffer, sets nbytes
 			const void* data = 0;
 			pa_stream_peek(read_stream, &data, &nbytes);
-			
+
 			if (data == NULL) {
 				// Data hole, call drop to pull it from the buffer 
 				// and move the read index forward
 				fprintf(logfile, "Read stream data hole, dropping hole data...\n");
 				pa_stream_drop(read_stream);
-				
 			} else {
-				fprintf(logfile, "Reading stream, %ld/%ld bytes\n", read_bytes, initial_nbytes);
-				for (long int i=0; i < nbytes; i++) {
+				// Read the nbytes peeked 
+				fprintf(logfile, "Reading peeked segment of %ld bytes\n", nbytes);
+				//fprintf(logfile, "Reading stream, %ld/%ld bytes\n", read_bytes, initial_nbytes);
+				for (long int i=0; i < nbytes; i++, read_bytes++) {
 					fprintf(logfile, "Reading stream %ld/%ld\n", i, nbytes);
 					const int* data_p = data;
 					// Our format should correspond to signed int of minimum 16 bits
 					signed int i_data = data_p[i];
-					fprintf(logfile, "index: %ld, data: %d\n", i , i_data);
-					fflush(logfile);
+					//printf(logfile, "index: %ld, data: %d\n", i , i_data);
+					//fflush(logfile);
 				}
-			}	
+				fprintf(logfile, "Read %ld bytes from the stream.\n", nbytes);
+
+			}
+			
+			total_bytes += read_bytes;	
 		}
+		fprintf(logfile, "Read total of %ld bytes from the stream.\n", read_bytes);
+
 	} else {
-		fprintf(logfile, "No data from read stream!...\n");
-		return;
+		fprintf(logfile, "No data to read from stream!...\n");
 	}
-	
 }
 
-void pa_stream_success_cb(pa_stream *stream, int success, void *userdata) {
+void pa_stream_success_cb(char* description, pa_stream *stream, int success, void *userdata) {
 	FILE* logfile = get_logfile();
-	fprintf(logfile, "Stream success: %d", success);
+	if (success) {
+		fprintf(logfile, "Stream operation success! retval: %d\n", success);
+	} else {
+		fprintf(logfile, "Stream operation failed! retval: %d\n", success);
+	}
 }
 
 int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, pa_context** pa_ctx, int* stream_read_data, int* mainloop_retval ) {
@@ -337,11 +346,13 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 
 	// This connects to the PulseAudio server to read 
 	// from the device to our stream
-	pa_stream_flags_t stream_flags = PA_STREAM_START_CORKED;
 	int monitor_stream_stat = 0; //pa_stream_set_monitor_stream(record_stream, 0);
 	if (monitor_stream_stat == 0) {
 		fprintf(logfile, "Connecting stream for device: %s\n", device_name);
-		int connect_stat = pa_stream_connect_record(record_stream, device_name, NULL, 0);
+		// create pa_buffer_attr to specify stream buffer settings
+		pa_buffer_attr* buffer_attribs = NULL;
+		pa_stream_flags_t stream_flags = PA_STREAM_START_CORKED;
+		int connect_stat = pa_stream_connect_record(record_stream, device_name, buffer_attribs, stream_flags);
 		if (connect_stat == 0) {
 			fprintf(logfile, "Opened recording stream for device: %s\n", device_name);
 		} else {
