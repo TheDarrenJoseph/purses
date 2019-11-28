@@ -267,38 +267,44 @@ int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation*
 
 void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {	
 	FILE* logfile = get_logfile();
-
+	
+	size_t initial_nbytes = nbytes;
+	
 	// Print and flush in case this takes time
 	fprintf(logfile, "Reading stream...\n");
 	fflush(logfile);
 	
-	// Peek to read each fragment from the buffer
-	
-	const void** data = 0;
-	pa_stream_peek(read_stream, data, &nbytes);
-	
-	if (data == NULL) {
-		if (nbytes == 0) {
-			fprintf(logfile, "No data from read stream!...\n");
-			return;
-		} else {
-			// Data hole, call drop to pull it from the buffer 
-			// and move the read index forward
-			fprintf(logfile, "Read stream data hole, dropping hole data...\n");
-			pa_stream_drop(read_stream);
+	size_t read_bytes = 0;
+	if (nbytes > 0) {
+		fprintf(logfile, "Reading stream of %ld bytes\n", initial_nbytes);
+		while (read_bytes < nbytes) {
+			//pa_stream_readable_size() ???
+			
+			// Peek to read each fragment from the buffer
+			const void* data = 0;
+			pa_stream_peek(read_stream, &data, &nbytes);
+			
+			if (data == NULL) {
+				// Data hole, call drop to pull it from the buffer 
+				// and move the read index forward
+				fprintf(logfile, "Read stream data hole, dropping hole data...\n");
+				pa_stream_drop(read_stream);
+				
+			} else {
+				fprintf(logfile, "Reading stream, %ld/%ld bytes\n", read_bytes, initial_nbytes);
+				for (long int i=0; i < nbytes; i++) {
+					fprintf(logfile, "Reading stream %ld/%ld\n", i, nbytes);
+					const int* data_p = data;
+					// Our format should correspond to signed int of minimum 16 bits
+					signed int i_data = data_p[i];
+					fprintf(logfile, "index: %ld, data: %d\n", i , i_data);
+					fflush(logfile);
+				}
+			}	
 		}
-		
 	} else {
-		fprintf(logfile, "Reading stream of %ld bytes\n", nbytes);
-		
-		for (long int i=0; i < nbytes; i++) {
-			fprintf(logfile, "Reading stream %ld/%ld\n", i, nbytes);
-			const int* data_p = (*data);
-			// Our format should correspond to signed int of minimum 16 bits
-			signed int i_data = data_p[i];
-			fprintf(logfile, "-%ld,%d-", i , i_data);
-			fflush(logfile);
-		}
+		fprintf(logfile, "No data from read stream!...\n");
+		return;
 	}
 	
 }
@@ -332,11 +338,13 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 	// This connects to the PulseAudio server to read 
 	// from the device to our stream
 	pa_stream_flags_t stream_flags = PA_STREAM_START_CORKED;
-	int monitor_stream_stat = pa_stream_set_monitor_stream(record_stream, sink_idx);
+	int monitor_stream_stat = 0; //pa_stream_set_monitor_stream(record_stream, 0);
 	if (monitor_stream_stat == 0) {
 		fprintf(logfile, "Connecting stream for device: %s\n", device_name);
-		int connect_stat = pa_stream_connect_record(record_stream, device_name, NULL, stream_flags);
-		if (connect_stat < 0) {
+		int connect_stat = pa_stream_connect_record(record_stream, device_name, NULL, 0);
+		if (connect_stat == 0) {
+			fprintf(logfile, "Opened recording stream for device: %s\n", device_name);
+		} else {
 			const char* error = pa_strerror(connect_stat); 
 			fprintf(logfile, "Failed to connect recording stream for device: %s, status: %d, error: %s\n", device_name, connect_stat, error);
 			return 1;
@@ -355,11 +363,11 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 	while (success_state == 0) {	
 		switch (stream_state) {
 			case NOT_READY:
-				fprintf(logfile, "PA stream not ready, iterating... \n");
+				//fprintf(logfile, "PA stream not ready, iterating... \n");
 				mainloop_state = pa_mainloop_iterate(*mainloop, 1, mainloop_retval);
 				break;
 			case READY: 
-				fprintf(logfile, "PA stream ready..\n");
+				//fprintf(logfile, "PA stream ready..\n");
 				
 				if (pa_stream_is_corked(record_stream) > 0) {
 					fprintf(logfile, "Uncorking stream... \n");
@@ -367,15 +375,18 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 					pa_stream_cork(record_stream, 0, pa_stream_success_cb, mainloop);
 				} 
 	
-				//fprintf(logfile, "Iterating to read READY stream:  %d/%d \n", i, MAX_ITERATIONS);
+				//fprintf(logfile, "Iterating to read READY stream.\n");
 				fflush(logfile);
+				// Now we're ready, block until we have data
 				mainloop_state = pa_mainloop_iterate(*mainloop, 1, mainloop_retval);
-	
 				break;
 			case ERROR:
 				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(*pa_ctx)));
-				success_state = 1;
+				return 1;
 				break;
+			case TERMINATED:
+				fprintf(logfile, "PA Stream terminated (success)\n");
+				return 0;
 			default:
 				fprintf(logfile, "Unexpected state! %d\n", stream_state);
 				success_state = 1;
@@ -383,9 +394,9 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 		}		
 		
 		// Mainloop blocks for events on manual iter without us checking this
-		if (mainloop_state <= 0) {
+		if (mainloop_state < 0) {
 			int retval = (*mainloop_retval);
-			fprintf(logfile, "Mainloop exited with status: %d \n", mainloop_state);
+			fprintf(logfile, "Mainloop exited with status: %d, return val: %d\n", mainloop_state, retval);
 			pa_stream_disconnect(record_stream);
 			//return retval;
 		} else {
