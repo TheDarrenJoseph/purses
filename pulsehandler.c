@@ -10,6 +10,9 @@
 #define MAX_ITERATIONS 50000
 #define DEVICE_MAX 16
 
+const size_t BUFFER_BYTE_COUNT = 512;
+
+
 int sink_count = 0;
 
 // Signed 16 integer bit PCM, little endian
@@ -268,18 +271,16 @@ int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation*
 void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {	
 	FILE* logfile = get_logfile();
 	
-	const size_t expected_bytes = 512;
-	
 	size_t initial_nbytes = nbytes;
 	
 	if (nbytes > 0) {
-		if (nbytes >= expected_bytes) {
+		if (nbytes >= BUFFER_BYTE_COUNT) {
 			// Print and flush in case this takes time
 			fprintf(logfile, "Reading stream of %ld bytes\n", initial_nbytes);
 			fflush(logfile);
 			size_t total_bytes = 0;
 			size_t read_bytes = 0;
-			while (read_bytes < expected_bytes) {
+			while (read_bytes < BUFFER_BYTE_COUNT) {
 				//pa_stream_readable_size() ???
 				
 				// Peek to read each fragment from the buffer, sets nbytes
@@ -295,23 +296,23 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 					// Read the nbytes peeked 
 					fprintf(logfile, "Reading peeked segment of %ld bytes\n", nbytes);
 					//fprintf(logfile, "Reading stream, %ld/%ld bytes\n", read_bytes, initial_nbytes);
-					for (long int i=0; i < expected_bytes; i++, read_bytes++) {
-						fprintf(logfile, "Reading stream %ld/%ld\n", i+1, expected_bytes);
+					for (long int i=0; i < BUFFER_BYTE_COUNT; i++, read_bytes++) {
+						fprintf(logfile, "Reading stream %ld/%ld\n", i+1, BUFFER_BYTE_COUNT);
 						const int* data_p = data;
 						// Our format should correspond to signed int of minimum 16 bits
 						signed int i_data = data_p[i];
 						//printf(logfile, "index: %ld, data: %d\n", i , i_data);
 						//fflush(logfile);
 					}
-					fprintf(logfile, "Read %ld bytes from the stream.\n", expected_bytes);
+					fprintf(logfile, "Read %ld bytes from the stream.\n", BUFFER_BYTE_COUNT);
 
 				}
 				
 				total_bytes += read_bytes;	
 			}
-			fprintf(logfile, "Read total of %ld / %ld bytes from the stream.\n", read_bytes, expected_bytes);
+			fprintf(logfile, "Read total of %ld / %ld bytes from the stream.\n", read_bytes, BUFFER_BYTE_COUNT);
 		} else {
-			fprintf(logfile, "Waiting for stream data buffer to fill: %ld/%ld\n", nbytes, expected_bytes);
+			fprintf(logfile, "Waiting for stream data buffer to fill: %ld/%ld\n", nbytes, BUFFER_BYTE_COUNT);
 		}
 
 	} else {
@@ -357,7 +358,7 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 		// create pa_buffer_attr to specify stream buffer settings
 		const pa_buffer_attr buffer_attribs = {
 			// Max buffer size
-			.maxlength = (uint32_t) 512,
+			.maxlength = (uint32_t) BUFFER_BYTE_COUNT,
 			// Fragment size, this -1 will let the server choose the size
 			// with buffer 
 			.fragsize = (uint32_t) -1,
@@ -476,8 +477,8 @@ int pa_record_device(pa_device_t device) {
 	
 	pa_context_connect(pa_ctx, NULL, 0 , NULL);
 		
-	// Allow 512 bytes back per read
-	int* stream_read_data = malloc ( 512 * sizeof(int));
+	// Allow BUFFER_BYTE_COUNT bytes back per read
+	int* stream_read_data = malloc ( BUFFER_BYTE_COUNT * sizeof(int));
 	int read_stat = perform_read(device.monitor_source_name, device.index, &mainloop, &pa_ctx, stream_read_data, &mainloop_retval);
 	pa_disconnect(pa_ctx, mainloop);
 
