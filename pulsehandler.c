@@ -268,53 +268,58 @@ int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation*
 void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {	
 	FILE* logfile = get_logfile();
 	
+	const size_t expected_bytes = 512;
+	
 	size_t initial_nbytes = nbytes;
 	
-	// Print and flush in case this takes time
-	fprintf(logfile, "Reading stream of %ld bytes\n", initial_nbytes);
-	fflush(logfile);
-	
 	if (nbytes > 0) {
-		size_t total_bytes = 0;
-		size_t read_bytes = 0;
-		while (read_bytes < nbytes) {
-			//pa_stream_readable_size() ???
-			
-			// Peek to read each fragment from the buffer, sets nbytes
-			const void* data = 0;
-			pa_stream_peek(read_stream, &data, &nbytes);
+		if (nbytes >= expected_bytes) {
+			// Print and flush in case this takes time
+			fprintf(logfile, "Reading stream of %ld bytes\n", initial_nbytes);
+			fflush(logfile);
+			size_t total_bytes = 0;
+			size_t read_bytes = 0;
+			while (read_bytes < expected_bytes) {
+				//pa_stream_readable_size() ???
+				
+				// Peek to read each fragment from the buffer, sets nbytes
+				const void* data = 0;
+				pa_stream_peek(read_stream, &data, &nbytes);
 
-			if (data == NULL) {
-				// Data hole, call drop to pull it from the buffer 
-				// and move the read index forward
-				fprintf(logfile, "Read stream data hole, dropping hole data...\n");
-				pa_stream_drop(read_stream);
-			} else {
-				// Read the nbytes peeked 
-				fprintf(logfile, "Reading peeked segment of %ld bytes\n", nbytes);
-				//fprintf(logfile, "Reading stream, %ld/%ld bytes\n", read_bytes, initial_nbytes);
-				for (long int i=0; i < nbytes; i++, read_bytes++) {
-					fprintf(logfile, "Reading stream %ld/%ld\n", i, nbytes);
-					const int* data_p = data;
-					// Our format should correspond to signed int of minimum 16 bits
-					signed int i_data = data_p[i];
-					//printf(logfile, "index: %ld, data: %d\n", i , i_data);
-					//fflush(logfile);
+				if (data == NULL) {
+					// Data hole, call drop to pull it from the buffer 
+					// and move the read index forward
+					fprintf(logfile, "Read stream data hole, dropping hole data...\n");
+					pa_stream_drop(read_stream);
+				} else {
+					// Read the nbytes peeked 
+					fprintf(logfile, "Reading peeked segment of %ld bytes\n", nbytes);
+					//fprintf(logfile, "Reading stream, %ld/%ld bytes\n", read_bytes, initial_nbytes);
+					for (long int i=0; i < expected_bytes; i++, read_bytes++) {
+						fprintf(logfile, "Reading stream %ld/%ld\n", i+1, expected_bytes);
+						const int* data_p = data;
+						// Our format should correspond to signed int of minimum 16 bits
+						signed int i_data = data_p[i];
+						//printf(logfile, "index: %ld, data: %d\n", i , i_data);
+						//fflush(logfile);
+					}
+					fprintf(logfile, "Read %ld bytes from the stream.\n", expected_bytes);
+
 				}
-				fprintf(logfile, "Read %ld bytes from the stream.\n", nbytes);
-
+				
+				total_bytes += read_bytes;	
 			}
-			
-			total_bytes += read_bytes;	
+			fprintf(logfile, "Read total of %ld / %ld bytes from the stream.\n", read_bytes, expected_bytes);
+		} else {
+			fprintf(logfile, "Waiting for stream data buffer to fill: %ld/%ld\n", nbytes, expected_bytes);
 		}
-		fprintf(logfile, "Read total of %ld bytes from the stream.\n", read_bytes);
 
 	} else {
 		fprintf(logfile, "No data to read from stream!...\n");
 	}
 }
 
-void pa_stream_success_cb(char* description, pa_stream *stream, int success, void *userdata) {
+void pa_stream_success_cb(pa_stream *stream, int success, void *userdata) {
 	FILE* logfile = get_logfile();
 	if (success) {
 		fprintf(logfile, "Stream operation success! retval: %d\n", success);
@@ -350,9 +355,15 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 	if (monitor_stream_stat == 0) {
 		fprintf(logfile, "Connecting stream for device: %s\n", device_name);
 		// create pa_buffer_attr to specify stream buffer settings
-		pa_buffer_attr* buffer_attribs = NULL;
+		const pa_buffer_attr buffer_attribs = {
+			// Max buffer size
+			.maxlength = (uint32_t) 512,
+			// Fragment size, this -1 will let the server choose the size
+			// with buffer 
+			.fragsize = (uint32_t) -1,
+		};
 		pa_stream_flags_t stream_flags = PA_STREAM_START_CORKED;
-		int connect_stat = pa_stream_connect_record(record_stream, device_name, buffer_attribs, stream_flags);
+		int connect_stat = pa_stream_connect_record(record_stream, device_name, &buffer_attribs, stream_flags);
 		if (connect_stat == 0) {
 			fprintf(logfile, "Opened recording stream for device: %s\n", device_name);
 		} else {
@@ -379,7 +390,6 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 				break;
 			case READY: 
 				//fprintf(logfile, "PA stream ready..\n");
-				
 				if (pa_stream_is_corked(record_stream) > 0) {
 					fprintf(logfile, "Uncorking stream... \n");
 					// Resume the stream now it's ready
@@ -389,7 +399,7 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 				//fprintf(logfile, "Iterating to read READY stream.\n");
 				fflush(logfile);
 				// Now we're ready, block until we have data
-				mainloop_state = pa_mainloop_iterate(*mainloop, 1, mainloop_retval);
+				mainloop_state = pa_mainloop_iterate(*mainloop, 0, mainloop_retval);
 				break;
 			case ERROR:
 				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(*pa_ctx)));
@@ -411,7 +421,7 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 			pa_stream_disconnect(record_stream);
 			//return retval;
 		} else {
-			fprintf(logfile, "Mainloop dispatched %d sources\n", mainloop_state);
+			if (mainloop_state > 0) fprintf(logfile, "Mainloop dispatched %d sources\n", mainloop_state);
 		}
 		
 		fflush(logfile);
