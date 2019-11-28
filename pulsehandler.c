@@ -188,8 +188,10 @@ FILE* logfile = get_logfile();
 			case READY:
 				return 0;
 			case ERROR:
+				fprintf(logfile, "PA context encountered an error: %s!\n", pa_strerror(pa_context_errno(*pa_ctx)));
+				return 1;
 			case TERMINATED:
-				fprintf(logfile, "PA Context encountered an error!\n");
+				fprintf(logfile, "PA Context is terminated (no longer available)!\n");
 				return 1;
 			case UNKOWN:
 				fprintf(logfile, "Unexpected context state!\n");
@@ -201,7 +203,7 @@ FILE* logfile = get_logfile();
 	return 1;
 }
 
-int await_operation(pa_mainloop** mainloop, pa_operation** pa_op) {
+int await_operation(pa_mainloop** mainloop, pa_operation** pa_op, pa_context** pa_ctx) {
 	FILE* logfile = get_logfile();
 	
 	enum pa_state pa_op_state = NOT_READY;
@@ -214,7 +216,7 @@ int await_operation(pa_mainloop** mainloop, pa_operation** pa_op) {
 				pa_mainloop_iterate(*mainloop, 1, NULL);
 				break;
 			case ERROR:
-				fprintf(logfile, "Operation failed!\n");
+				fprintf(logfile, "Operation failed: %s!\n", pa_strerror(pa_context_errno(*pa_ctx)));
 				return 1;	
 			case TERMINATED:
 				fprintf(logfile, "Operation success.\n");
@@ -250,7 +252,7 @@ int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation*
 		
 		if (context_set && pa_op != 0) {
 			fprintf(logfile, "Awaiting operation completion...\n");
-			int await_op_stat = await_operation(mainloop, &pa_op);
+			int await_op_stat = await_operation(mainloop, &pa_op, pa_ctx);
 			if (await_op_stat != 0) {
 				fprintf(logfile, "Awaiting PA Operation returned failure code: %d\n", await_stat);
 				return 1;
@@ -371,7 +373,7 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 	
 				break;
 			case ERROR:
-				fprintf(logfile, "PA stream encountered an error!\n");
+				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(*pa_ctx)));
 				success_state = 1;
 				break;
 			default:
