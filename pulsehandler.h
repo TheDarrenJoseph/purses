@@ -14,7 +14,19 @@ typedef struct pa_device {
 	char description[256];
 } pa_device_t;
 
-enum pa_state { NOT_READY, READY, ERROR };
+// Shared state for operations/contexts/streams, etc
+enum pa_state { 
+	// Typically need to iterate the mainloop/await readyness here
+	NOT_READY,
+	// When we perform our actions upong the op/context/stream, etc
+	READY, 
+	// General error category
+	ERROR, 
+	// Point of return
+	TERMINATED, 
+	// For anything not enumerated/lib changes
+	UNKOWN 
+	};
 
 void pa_state_cb(pa_context* context, void* userdata);
 void print_devicelist(pa_device_t* devices, int size);

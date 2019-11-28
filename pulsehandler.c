@@ -27,17 +27,31 @@ void pa_context_state_cb(struct pa_context* context, void* userdata) {
 	enum pa_state* pa_stat = userdata;
      
     pa_context_state_t pa_con_state = pa_context_get_state(context);
-	//printf("PA Context State is: %d\n", * pa_stat);
+	//printf("PA Context State is: %d\n", (*pa_stat));
 	switch  (pa_con_state) {
-		default:
+		// Context setup states
+		case PA_CONTEXT_UNCONNECTED:
+		case PA_CONTEXT_CONNECTING:
+		case PA_CONTEXT_AUTHORIZING:
+		case PA_CONTEXT_SETTING_NAME:
 			*pa_stat = NOT_READY;
 			break;
-		case PA_CONTEXT_FAILED:
-		case PA_CONTEXT_TERMINATED:
-			*pa_stat = ERROR;
-			break;
+		// The connection is established
+		// the context is ready to execute operations. 
 		case PA_CONTEXT_READY:
 			*pa_stat = READY;
+			break;
+		// The connection failed or was disconnected. 
+		case PA_CONTEXT_FAILED:
+			*pa_stat = ERROR;
+			break;
+		// The connection was terminated cleanly. 
+		case PA_CONTEXT_TERMINATED:
+			*pa_stat = TERMINATED;
+			break;
+		// Anything else/exceptional
+		default:
+			*pa_stat = UNKOWN;
 			break;
 	}	
 }
@@ -49,19 +63,54 @@ void pa_stream_state_cb(struct pa_stream* stream, void* userdata) {
 	enum pa_state* pa_stat = userdata;
      
     pa_stream_state_t pa_stream_state = pa_stream_get_state(stream);
-	//printf("PA Context State is: %d\n", * pa_stat);
+	//printf("PA Stream State is: %d\n", (*pa_stream_state));
 	switch  (pa_stream_state) {
-		default:
+		// The stream is not yet connected to any sink or source.
+		case PA_STREAM_UNCONNECTED:
+		// The stream is being created.
+		case PA_STREAM_CREATING:
 			*pa_stat = NOT_READY;
 			break;
-		case PA_STREAM_FAILED:
-		case PA_STREAM_TERMINATED:
-			*pa_stat = ERROR;
-			break;
+		//The stream is established, you may pass audio data to it now.
 		case PA_STREAM_READY:
 			*pa_stat = READY;
 			break;
+		// An error occurred that made the stream invalid.
+		case PA_STREAM_FAILED:
+			*pa_stat = ERROR;
+			break;
+		// The stream has been terminated cleanly. 
+		case PA_STREAM_TERMINATED:
+			*pa_stat = TERMINATED;
+			break;
+		// Anything else/exceptional
+		default:
+			*pa_stat = UNKOWN;
+			break;
 	}	
+}
+
+
+enum pa_state check_pa_op( pa_operation* pa_op) {
+	//FILE* logfile = get_logfile();
+	int pa_op_state = pa_operation_get_state(pa_op);
+	//fprintf(logfile, "PA operation state: %d\n", pa_op_state);
+	
+	switch(pa_op_state){
+		case PA_OPERATION_RUNNING:
+			return NOT_READY;
+		case PA_OPERATION_DONE:
+			// Once it's done we can unref/cancel it
+			pa_operation_unref(pa_op);
+			return TERMINATED;
+		case PA_OPERATION_CANCELLED:
+			// Once it's done we can unref/cancel it
+			pa_operation_unref(pa_op);
+			return ERROR;
+		default:
+			pa_operation_unref(pa_op);
+			return UNKOWN;
+	}
 }
 
 // pa_mainloop will call this function when it's ready to tell us about a sink.
@@ -103,28 +152,6 @@ void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void*
     }
 }
 
-enum pa_state check_pa_op( pa_operation* pa_op) {
-	//FILE* logfile = get_logfile();
-	int pa_op_state = pa_operation_get_state(pa_op);
-	//fprintf(logfile, "PA operation state: %d\n", pa_op_state);
-	
-	switch(pa_op_state){
-		case PA_OPERATION_RUNNING:
-			return NOT_READY;
-		case PA_OPERATION_DONE:
-			// Once it's done we can unref/cancel it
-			pa_operation_unref(pa_op);
-			return READY;
-		case PA_OPERATION_CANCELLED:
-			// Once it's done we can unref/cancel it
-			pa_operation_unref(pa_op);
-			return ERROR;
-		default:
-			pa_operation_unref(pa_op);
-			return ERROR;
-	}
-}
-
 void pa_disconnect(pa_context* pa_ctx, pa_mainloop* mainloop) {
 	pa_context_disconnect(pa_ctx);
 	pa_context_unref(pa_ctx);
@@ -154,16 +181,18 @@ FILE* logfile = get_logfile();
 		//printf("PA Ready state is: %d\n", pa_ready);
 		switch (pa_ready) {
 			case NOT_READY:
-				fprintf(logfile, "PA Not ready, iterating.. %d\n", i);
+				fprintf(logfile, "Awaiting context setup... (%d)\n", i);
+				// Loop, blocking until we get something useful
 				pa_mainloop_iterate(*mainloop, 1, NULL);
 				break;
 			case READY:
 				return 0;
 			case ERROR:
+			case TERMINATED:
 				fprintf(logfile, "PA Context encountered an error!\n");
 				return 1;
-			default:
-				fprintf(logfile, "Unexpected pa_ready state! Exiting.\n");
+			case UNKOWN:
+				fprintf(logfile, "Unexpected context state!\n");
 				return 1;
 
 		}
@@ -179,17 +208,20 @@ int await_operation(pa_mainloop** mainloop, pa_operation** pa_op) {
 	for (int i=0; i < MAX_ITERATIONS; i++) {		
 		pa_op_state = check_pa_op(*pa_op);
 		switch (pa_op_state) {
-			case READY:
-				fprintf(logfile, "Operation success.\n");
-				return 0;
 			case NOT_READY:
-				// iterate again
-				fprintf(logfile, "Operation in progress...\n");
+				fprintf(logfile, "Operation in progress... (%d)\n", i);
+				// Loop, blocking until we get something useful
 				pa_mainloop_iterate(*mainloop, 1, NULL);
 				break;
 			case ERROR:
 				fprintf(logfile, "Operation failed!\n");
 				return 1;	
+			case TERMINATED:
+				fprintf(logfile, "Operation success.\n");
+				return 0;
+			default:
+				fprintf(logfile, "Unexpected operation state code: %d!\n", pa_op_state);
+				return 1;
 		}
 		fflush(logfile);
 	}
@@ -232,7 +264,6 @@ int perform_operation(pa_mainloop** mainloop, pa_context** pa_ctx, pa_operation*
 }
 
 void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {	
-	return;
 	FILE* logfile = get_logfile();
 
 	// Print and flush in case this takes time
@@ -322,25 +353,31 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 	while (success_state == 0) {	
 		switch (stream_state) {
 			case NOT_READY:
-				//fprintf(logfile, "PA stream not ready, iterating %d/%d \n", iterations, MAX_ITERATIONS);
-				mainloop_state = pa_mainloop_iterate(*mainloop, 0, mainloop_retval);
+				fprintf(logfile, "PA stream not ready, iterating... \n");
+				mainloop_state = pa_mainloop_iterate(*mainloop, 1, mainloop_retval);
 				break;
 			case READY: 
 				fprintf(logfile, "PA stream ready..\n");
-				// Resume the stream now it's ready
-				pa_stream_cork(record_stream, 0, pa_stream_success_cb, mainloop);
 				
-				for (int i=0; i< MAX_ITERATIONS; i++) {
-					fprintf(logfile, "Iterating to read READY stream:  %d/%d \n", i, MAX_ITERATIONS);
-					fflush(logfile);
-					mainloop_state = pa_mainloop_iterate(*mainloop, 0, mainloop_retval);
-				}
+				if (pa_stream_is_corked(record_stream) > 0) {
+					fprintf(logfile, "Uncorking stream... \n");
+					// Resume the stream now it's ready
+					pa_stream_cork(record_stream, 0, pa_stream_success_cb, mainloop);
+				} 
+	
+				//fprintf(logfile, "Iterating to read READY stream:  %d/%d \n", i, MAX_ITERATIONS);
+				fflush(logfile);
+				mainloop_state = pa_mainloop_iterate(*mainloop, 1, mainloop_retval);
+	
+				break;
 			case ERROR:
 				fprintf(logfile, "PA stream encountered an error!\n");
 				success_state = 1;
+				break;
 			default:
 				fprintf(logfile, "Unexpected state! %d\n", stream_state);
 				success_state = 1;
+				break;
 		}		
 		
 		// Mainloop blocks for events on manual iter without us checking this
@@ -348,7 +385,7 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop** mainloop, 
 			int retval = (*mainloop_retval);
 			fprintf(logfile, "Mainloop exited with status: %d \n", mainloop_state);
 			pa_stream_disconnect(record_stream);
-			return retval;
+			//return retval;
 		} else {
 			fprintf(logfile, "Mainloop dispatched %d sources\n", mainloop_state);
 		}
