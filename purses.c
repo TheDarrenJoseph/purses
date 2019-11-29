@@ -38,7 +38,7 @@ void print_devicelist(pa_device_t* devices, int size) {
 }
 
 int get_devices(pa_device_t* device_list, int* count) {
-  int sink_list_stat = pa_get_sinklist(device_list, count);
+  int sink_list_stat = get_sinklist(device_list, count);
   printw("Retrieved %d Sink Devices...\n", (*count));
 
   if(sink_list_stat != 0) {
@@ -49,7 +49,7 @@ int get_devices(pa_device_t* device_list, int* count) {
   }
 }
 
-int main() {
+int main(void) {
 	// Logfile to handle non-curses output by our handlers
 	//FILE* LOGFILE = fopen("purses.log", "w");
 	FILE* logfile = get_logfile();
@@ -72,18 +72,25 @@ int main() {
 	//pa_devicelist_t pa_input_devicelist[16];
 
 	// This is where we'll store the output device list
-	pa_device_t pa_output_devicelist[16];
+	pa_device_t output_devicelist[16];
 
 	int count = 0;
-	int dev_stat = get_devices(pa_output_devicelist, &count);
-	if (dev_stat == 0) print_devicelist(pa_output_devicelist, 16);
+	int dev_stat = get_devices(output_devicelist, &count);
+	if (dev_stat == 0) print_devicelist(output_devicelist, 16);
 	
 	refresh();
 
 	
-	pa_device_t main_device = pa_output_devicelist[0];
-	pa_record_device(main_device);
+	pa_device_t main_device = output_devicelist[0];
+	record_stream_data_t* stream_read_data = 0;
+	int* buffer_size = 0;
+	record_device(main_device, &stream_read_data);
 	printw("Recording complete...\n");
+	
+	// And free the struct when we're done
+	free(stream_read_data);
+
+	
 	refresh();
 	//wgetch(mainwin);
 	//getch();
