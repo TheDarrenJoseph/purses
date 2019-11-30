@@ -14,6 +14,8 @@ const size_t BUFFER_BYTE_COUNT = 512;
 
 bool BUFFER_FILLED = false;
 bool STREAM_READ_LOCK = false;
+
+int buffer_nbytes = 0;
 int sink_count = 0;
     
 // Signed 16 integer bit PCM, little endian
@@ -169,13 +171,13 @@ void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void*
 void pa_disconnect(pa_context** pa_ctx, pa_mainloop** mainloop) {
 	FILE* logfile = get_logfile();
 
-	fprintf(logfile, "Disconnecting from PA...");
+	fprintf(logfile, "Disconnecting from PA...\n");
 	fflush(logfile);
 	pa_context_disconnect(*pa_ctx);
 	pa_context_unref(*pa_ctx);
 	quit_mainloop(*mainloop, 0);
 	pa_mainloop_free(*mainloop);
-	fprintf(logfile, "Done!");
+	fprintf(logfile, "Done!\n");
 }
 
 
@@ -267,11 +269,12 @@ int await_stream_termination(pa_mainloop* mainloop, pa_context* pa_ctx, pa_strea
 	enum pa_state stream_state = NOT_READY;
 	pa_stream_set_state_callback(stream, pa_stream_state_cb, &stream_state);
 		
-	for (int i=0; i < MAX_ITERATIONS; i++) {		
+	//for (int i=0; i < MAX_ITERATIONS; i++) {	
+	for(;;) {	
 		switch (stream_state) {
 			case NOT_READY:
 			case READY: 
-				(*mainloop_retval) = pa_mainloop_iterate(mainloop, 1, NULL);
+				(*mainloop_retval) = pa_mainloop_iterate(mainloop, 0, NULL);
 				break;
 			case ERROR:
 				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(pa_ctx)));
@@ -291,8 +294,8 @@ int await_stream_termination(pa_mainloop* mainloop, pa_context* pa_ctx, pa_strea
 
 		}
 	}
-	fprintf(logfile, "Timed out waiting for a PulseAudio stream to terminate.\n");
-	return 1;
+	//fprintf(logfile, "Timed out waiting for a PulseAudio stream to terminate.\n");
+	//return 1;
 }
 
 
@@ -358,6 +361,8 @@ int perform_operation(pa_mainloop* mainloop, pa_context* pa_ctx, pa_operation* (
 	return 1;
 }
 
+// Waits until the read stream is filled to BUFFER_BYTE_COUNT
+// Then reads BUFFER_BYTE_COUNT into our record_stream_data_t for display
 void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {	
 	FILE* logfile = get_logfile();
 	
@@ -417,11 +422,18 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 					fprintf(logfile, "Error while disconnecting recording stream!\n");
 				}			
 				BUFFER_FILLED = true;
+			} else {
+				if (nbytes > buffer_nbytes) {
+					fprintf(logfile, "Waiting for stream buffer to fill: %ld/%ld.\n", nbytes, BUFFER_BYTE_COUNT);
+					buffer_nbytes = nbytes;
+				}
 			}
 		}
 	} else {
 		fprintf(logfile, "No data to read from stream!...\n");
 	}		
+	
+	fflush(logfile);
 }
 
 void pa_stream_success_cb(pa_stream *stream, int success, void *userdata) {
@@ -452,7 +464,7 @@ int setup_record_stream(const char* device_name, int sink_idx, pa_mainloop* main
 		// create pa_buffer_attr to specify stream buffer settings
 		const pa_buffer_attr buffer_attribs = {
 			// Max buffer size
-			.maxlength = (uint32_t) BUFFER_BYTE_COUNT,
+			.maxlength = (uint32_t) -1,
 			// Fragment size, this -1 will let the server choose the size
 			// with buffer 
 			.fragsize = (uint32_t) -1,
@@ -512,9 +524,16 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop* mainloop, p
 	fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
 	fflush(logfile);
 	await_stream_termination(mainloop, pa_ctx, record_stream, mainloop_retval);
-	fprintf(logfile, "Mainloop exited with value: %d\n", *mainloop_retval);
 	fflush(logfile);
-	return (*mainloop_retval);
+	
+	// Success / Failure states
+	if (mainloop_retval >= 0) {
+		fprintf(logfile, "Mainloop exited sucessfully with value: %d\n", *mainloop_retval);
+		return 0;
+	} else {
+		fprintf(logfile, "Mainloop failed with value: %d\n", *mainloop_retval);
+		return 1;
+	}
 }
 
 int get_sinklist(pa_device_t* output_devices, int* count) {	
@@ -578,12 +597,12 @@ int record_device(pa_device_t device, record_stream_data_t** stream_read_data) {
 	int read_stat = perform_read(device.monitor_source_name, device.index, mainloop, pa_ctx, (*stream_read_data), &mainloop_retval);
 
 	if (read_stat == 0) {
-		fprintf(logfile, "Recording complete.");
+		fprintf(logfile, "Recording complete.\n");
 		//(*buffer_size) = BUFFER_BYTE_COUNT;
 		// Display our data?
 		
 	} else {
-		fprintf(logfile, "Recording failed!");
+		fprintf(logfile, "Recording failed!\n");
 		//(*buffer_size) = 0;
 	}
 	
