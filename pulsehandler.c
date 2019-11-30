@@ -68,7 +68,7 @@ void pa_stream_state_cb(struct pa_stream* stream, void* userdata) {
 	enum pa_state* pa_stat = userdata;
      
     pa_stream_state_t pa_stream_state = pa_stream_get_state(stream);
-	//printf("PA Stream State is: %d\n", (*pa_stream_state));
+	//fprintf(logfile, "PA Stream State is: %d\n", pa_stream_state);
 	switch  (pa_stream_state) {
 		// The stream is not yet connected to any sink or source.
 		case PA_STREAM_UNCONNECTED:
@@ -179,7 +179,7 @@ pa_operation* get_sink_list(pa_context* pa_ctx, void* userdata) {
 
 
 int await_context_ready(pa_mainloop* mainloop, pa_context* pa_ctx) {
-FILE* logfile = get_logfile();
+	FILE* logfile = get_logfile();
 
 	// This hooks up a callback to set pa_ready/keep this int updated
 	int pa_ready = 0;
@@ -210,6 +210,44 @@ FILE* logfile = get_logfile();
 	fprintf(logfile, "Timed out waiting for PulseAudio server ready state!\n");
 	return 1;
 }
+
+
+int await_stream_ready(pa_mainloop* mainloop, pa_context* pa_ctx, pa_stream* stream) {
+	FILE* logfile = get_logfile();
+
+	enum pa_state stream_state = NOT_READY;
+	pa_stream_set_state_callback(stream, pa_stream_state_cb, &stream_state);
+		
+	for (int i=0; i < MAX_ITERATIONS; i++) {		
+		switch (stream_state) {
+			case NOT_READY:
+				pa_mainloop_iterate(mainloop, 1, NULL);
+				break;
+			case READY: 
+				fprintf(logfile, "PA Stream ready.\n");
+				return 0;
+			case ERROR:
+				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(pa_ctx)));
+				return 1;
+			case TERMINATED:
+				if (BUFFER_FILLED) {
+					fprintf(logfile, "PA Stream terminated (success)\n");
+					return 0;
+				} else {
+					fprintf(logfile, "PA Stream terminated (failed to fill byte buffer)\n");
+					return 1;
+				}
+			case UNKOWN:
+			default:
+				fprintf(logfile, "Unexpected state! %d\n", stream_state);
+				return 1;
+
+		}
+	}
+	fprintf(logfile, "Timed out waiting for a PulseAudio stream to be ready.\n");
+	return 1;
+}
+
 
 int await_operation(pa_mainloop* mainloop, pa_operation* pa_op, pa_context* pa_ctx) {
 	FILE* logfile = get_logfile();
@@ -274,63 +312,59 @@ int perform_operation(pa_mainloop* mainloop, pa_context* pa_ctx, pa_operation* (
 
 void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {	
 	FILE* logfile = get_logfile();
-	fprintf(logfile, "Attempting to read stream..\n");
 	
 	size_t initial_nbytes = nbytes;
 	
 	if (nbytes > 0) {
-		if (!STREAM_READ_LOCK && nbytes >= BUFFER_BYTE_COUNT) {
-			STREAM_READ_LOCK = true;
-			// Print and flush in case this takes time
-			fprintf(logfile, "Reading stream of %ld bytes\n", initial_nbytes);
-			size_t total_bytes = 0;
-			size_t read_bytes = 0;
-			
-			record_stream_data_t* data_output = userdata;
-			while (read_bytes < BUFFER_BYTE_COUNT) {
-				//pa_stream_readable_size() ???
-				
-				// Peek to read each fragment from the buffer, sets nbytes
-				const void* data = 0;
-				pa_stream_peek(read_stream, &data, &nbytes);
-
-				if (data == NULL) {
-					// Data hole, call drop to pull it from the buffer 
-					// and move the read index forward
-					fprintf(logfile, "Read stream data hole, dropping hole data...\n");
-					pa_stream_drop(read_stream);
-				} else {
-					// Read the nbytes peeked 
-					//fprintf(logfile, "Reading peeked segment of %ld bytes\n", nbytes);
-					//fprintf(logfile, "Reading stream, %ld/%ld bytes\n", read_bytes, initial_nbytes);
-					for (long int i=0; i < BUFFER_BYTE_COUNT; i++, read_bytes++) {
-						//fprintf(logfile, "Reading stream %ld/%ld\n", i+1, BUFFER_BYTE_COUNT);
-						const signed int* data_p = data;
-						// Our format should correspond to signed int of minimum 16 bits
-						// Set the variable in our output data to match
-						data_output -> data[i] = data_p[i];
-						//fprintf(logfile, "index: %ld, data: %d\n", i , i_data);
-					}
-					fprintf(logfile, "Read %ld bytes from the stream.\n", BUFFER_BYTE_COUNT);
-				}
-				
-				total_bytes += read_bytes;	
-			}
-			fprintf(logfile, "Read total of %ld / %ld bytes from the stream.\n", read_bytes, BUFFER_BYTE_COUNT);
-			BUFFER_FILLED = true;
-			
-			if (BUFFER_FILLED) {
-				fprintf(logfile, "Filled buffer\n");
-			} else {
-				fprintf(logfile, "Haven't filled buffer\n");
-			}
+		if (STREAM_READ_LOCK) {
+		   fprintf(logfile, "Stream already being read..\n");
+		   return;
 		} else {
-			//if (nbytes == 0 || nbytes%10 == 0) fprintf(logfile, "Waiting for stream data buffer to fill: %ld/%ld\n", nbytes, BUFFER_BYTE_COUNT);
-		}
+			if (nbytes >= BUFFER_BYTE_COUNT) {
+				fprintf(logfile, "Read lock..\n");
+				STREAM_READ_LOCK = true;
+				// Print and flush in case this takes time
+				fprintf(logfile, "Reading stream of %ld bytes\n", initial_nbytes);
+				size_t total_bytes = 0;
+				size_t read_bytes = 0;
+				
+				record_stream_data_t* data_output = userdata;
+				while (read_bytes < BUFFER_BYTE_COUNT) {
+					//pa_stream_readable_size() ???
+					
+					// Peek to read each fragment from the buffer, sets nbytes
+					const void* data = 0;
+					pa_stream_peek(read_stream, &data, &nbytes);
 
+					if (data == NULL) {
+						// Data hole, call drop to pull it from the buffer 
+						// and move the read index forward
+						fprintf(logfile, "Read stream data hole, dropping hole data...\n");
+						pa_stream_drop(read_stream);
+					} else {
+						// Read the nbytes peeked 
+						//fprintf(logfile, "Reading peeked segment of %ld bytes\n", nbytes);
+						//fprintf(logfile, "Reading stream, %ld/%ld bytes\n", read_bytes, initial_nbytes);
+						for (long int i=0; i < BUFFER_BYTE_COUNT; i++, read_bytes++) {
+							//fprintf(logfile, "Reading stream %ld/%ld\n", i+1, BUFFER_BYTE_COUNT);
+							const signed int* data_p = data;
+							// Our format should correspond to signed int of minimum 16 bits
+							// Set the variable in our output data to match
+							data_output -> data[i] = data_p[i];
+							//fprintf(logfile, "index: %ld, data: %d\n", i , i_data);
+						}
+						fprintf(logfile, "Read %ld bytes from the stream.\n", BUFFER_BYTE_COUNT);
+					}
+					
+					total_bytes += read_bytes;	
+				}
+				fprintf(logfile, "Read total of %ld / %ld bytes from the stream.\n", read_bytes, BUFFER_BYTE_COUNT);
+				BUFFER_FILLED = true;
+			}
+		}
 	} else {
 		fprintf(logfile, "No data to read from stream!...\n");
-	}	
+	}		
 }
 
 void pa_stream_success_cb(pa_stream *stream, int success, void *userdata) {
@@ -352,11 +386,6 @@ int setup_record_stream(const char* device_name, int sink_idx, pa_mainloop* main
 	// pa_stream_new for PCM
 	fprintf(logfile, "Initialising PA Stream for device: %s\n", device_name);
 	(*record_stream) = pa_stream_new((pa_ctx), "purses record stream", ss, &map);
-	// register callbacks before connecting
-	
-	(*stream_state) = NOT_READY;
-	pa_stream_set_state_callback(*record_stream, pa_stream_state_cb, stream_state);
-	pa_stream_set_read_callback(*record_stream, read_stream_cb, stream_read_data);
 
 	// This connects to the PulseAudio server to read 
 	// from the device to our stream
@@ -369,7 +398,7 @@ int setup_record_stream(const char* device_name, int sink_idx, pa_mainloop* main
 			.maxlength = (uint32_t) BUFFER_BYTE_COUNT,
 			// Fragment size, this -1 will let the server choose the size
 			// with buffer 
-			.fragsize = (uint32_t) BUFFER_BYTE_COUNT,
+			.fragsize = (uint32_t) -1,
 		};
 		pa_stream_flags_t stream_flags = PA_STREAM_START_CORKED;
 		int connect_stat = pa_stream_connect_record(*record_stream, device_name, &buffer_attribs, stream_flags);
@@ -406,66 +435,54 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop* mainloop, p
 		return 1;
 	}	
 	
-	fprintf(logfile, "Starting mainloop to stream device: %s\n", device_name);
+	// await stream readiness
+	await_stream_ready(mainloop, pa_ctx, record_stream);
+	
+	// Set the data read callback now
+	pa_stream_set_read_callback(record_stream, read_stream_cb, stream_read_data);
+	
+	// Either keep iterating or return
+	if (!BUFFER_FILLED) {
+		//fprintf(logfile, "PA stream ready\n");
+		if (pa_stream_is_corked(record_stream)) {
+			fprintf(logfile, "Uncorking stream... \n");
+			// Resume the stream now it's ready
+			pa_stream_cork(record_stream, 0, pa_stream_success_cb, mainloop);
+			pa_mainloop_iterate(mainloop, 1, mainloop_retval);
+		} 
+	}
+		
+	fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
+	//fflush(logfile);
 	int mainloop_state = 0;
-	while (mainloop_state >= 0 && !(stream_state == TERMINATED)) {
-		fprintf(logfile, "Waiting for stream.. %d\n", stream_state);	
-		switch (stream_state) {
-			case NOT_READY:
-				fprintf(logfile, "PA stream not ready, iterating... \n");
-				// Block until the stream is ready
-				mainloop_state = pa_mainloop_iterate(mainloop, 1, mainloop_retval);
-				break;
-			case READY: 
-				fprintf(logfile, "PA stream ready\n");
-				if (pa_stream_is_corked(record_stream)) {
-					fprintf(logfile, "Uncorking stream... \n");
-					// Resume the stream now it's ready
-					pa_stream_cork(record_stream, 0, pa_stream_success_cb, mainloop);
-				} 
-				
-				// Either keep iterating or return
-				if (!BUFFER_FILLED) {
-					fprintf(logfile, "Iterating to read READY stream.\n");
-					mainloop_state = pa_mainloop_iterate(mainloop, 1, mainloop_retval);
-				}  else {
-					fprintf(logfile, "Buffer filled, disconnecting stream... %d.\n", BUFFER_FILLED);
-					if (!pa_stream_is_corked(record_stream)) {
-						fprintf(logfile, "Corking stream... \n");
-						// Resume the stream now it's ready
-						pa_stream_cork(record_stream, 1, pa_stream_success_cb, mainloop);
-					} 
-					
-					// Disconnect so we know we're done
-					pa_stream_disconnect(record_stream);
-					break;
-				}
-				break;
-			case ERROR:
-				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(pa_ctx)));
-				return 1;
-			case TERMINATED:
-				fprintf(logfile, "PA Stream terminated (success)\n");
-				// Unlock the reading callback
-				STREAM_READ_LOCK = false;
-				break;
-			case UNKOWN:
-			default:
-				fprintf(logfile, "Unexpected state! %d\n", stream_state);
-				return 1;
-		}		
-		fflush(logfile);
+	long int iter = 0;
+	// While no errors, or 0-* events dispatched, keep iterating for our data
+	while (mainloop_state >= 0) {
+		//fprintf(logfile, "Awaiting mainloop exit...\n");
+		
+		if(BUFFER_FILLED) {
+			fprintf(logfile, "Buffer filled, disconnecting stream... %d.\n", BUFFER_FILLED);
+			if (!pa_stream_is_corked(record_stream)) {
+				fprintf(logfile, "Corking stream... \n");
+				pa_stream_cork(record_stream, 1, pa_stream_success_cb, mainloop);
+			} 
+			
+			return 0;
+			//pa_stream_disconnect(record_stream);
+			//stream_state = TERMINATED;
+		} else if (iter%100==0) {
+			//fprintf(logfile, "Buffer not yet filled: %d, %ld \n", BUFFER_FILLED, iter);
+		}
+		//fflush(logfile);
+		//mainloop_state = pa_mainloop_iterate(mainloop, 0, mainloop_retval);
+		iter++;
 	}	
 
-	// Mainloop blocks for events on manual iter without us checking this
-	if (mainloop_state <= 0) {
-		int retval = (*mainloop_retval);
-		fprintf(logfile, "Mainloop exited with status: %d, return val: %d\n", mainloop_state, retval);
-		//pa_stream_disconnect(record_stream);
-		return retval;
-	}
-	fflush(logfile);
-	return 0;
+	int retval = (*mainloop_retval);
+	fprintf(logfile, "Mainloop exited with status: %d, return val: %d\n", mainloop_state, retval);
+	//pa_stream_disconnect(record_stream);
+	//fflush(logfile);
+	return retval;
 }
 
 int get_sinklist(pa_device_t* output_devices, int* count) {	
@@ -537,7 +554,7 @@ int record_device(pa_device_t device, record_stream_data_t** stream_read_data) {
 		fprintf(logfile, "Recording failed!");
 		//(*buffer_size) = 0;
 	}
-	fflush(logfile);
+	//fflush(logfile);
 	return 0;
 }
 

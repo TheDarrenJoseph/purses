@@ -51,7 +51,6 @@ int get_devices(pa_device_t* device_list, int* count) {
 
 int main(void) {
 	// Logfile to handle non-curses output by our handlers
-	//FILE* LOGFILE = fopen("purses.log", "w");
 	FILE* logfile = get_logfile();
 
 	// init curses
