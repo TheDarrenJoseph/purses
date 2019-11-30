@@ -6,6 +6,7 @@
 
 #include <pulsehandler.h>
 #include <shared.h>
+#include <processing.h>
 
 int println (char* format, va_list vlist) {
 	char* output = strcat(format, "\n");
@@ -86,10 +87,12 @@ int main(void) {
 	record_device(main_device, &stream_read_data);
 	printw("Recording complete...\n");
 	
+	// FFT The PCM Data
+	ct_fft(stream_read_data);
+	
 	// And free the struct when we're done
 	free(stream_read_data);
 
-	
 	refresh();
 	//wgetch(mainwin);
 	//getch();

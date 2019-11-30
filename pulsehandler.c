@@ -21,8 +21,16 @@ int sink_count = 0;
 // Signed 16 integer bit PCM, little endian
 // 44100 Hz
 // Single channel (mono) to ease processing
+/*
 static const pa_sample_spec mono_ss = {
 	.format = PA_SAMPLE_S16LE,
+	.rate = 44100,
+	.channels = 1
+};*/
+
+// Unsigned 8 Bit PCM for simple byte mapping on read
+static const pa_sample_spec mono_ss = {
+	.format = PA_SAMPLE_U8,
 	.rate = 44100,
 	.channels = 1
 };
@@ -412,7 +420,7 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 						//fprintf(logfile, "Reading stream, %ld/%ld bytes\n", read_bytes, initial_nbytes);
 						for (long int i=0; i < BUFFER_BYTE_COUNT; i++, read_bytes++) {
 							//fprintf(logfile, "Reading stream %ld/%ld\n", i+1, BUFFER_BYTE_COUNT);
-							const signed int* data_p = data;
+							const unsigned int* data_p = data;
 							// Our format should correspond to signed int of minimum 16 bits
 							// Set the variable in our output data to match
 							data_output -> data[i] = data_p[i];
