@@ -168,16 +168,21 @@ void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void*
     }
 }
 
-void pa_disconnect(pa_context** pa_ctx, pa_mainloop** mainloop) {
+void pa_disconnect_context(pa_context** pa_ctx) {
 	FILE* logfile = get_logfile();
-
-	fprintf(logfile, "Disconnecting from PA...\n");
-	fflush(logfile);
+	fprintf(logfile, "Disconnecting PA Context...\n");
 	pa_context_disconnect(*pa_ctx);
 	pa_context_unref(*pa_ctx);
+	fprintf(logfile, "Disconnected PA Context!\n");
+}
+
+void pa_disconnect(pa_context** pa_ctx, pa_mainloop** mainloop) {
+	FILE* logfile = get_logfile();
+	fprintf(logfile, "Disconnecting from PA...\n");
+	fflush(logfile);
 	quit_mainloop(*mainloop, 0);
 	pa_mainloop_free(*mainloop);
-	fprintf(logfile, "Done!\n");
+	fprintf(logfile, "Disconnected from PA!\n");
 }
 
 
@@ -192,37 +197,43 @@ pa_operation* get_sink_list(pa_context* pa_ctx, void* userdata) {
 	return pa_context_get_sink_info_list(pa_ctx, pa_sinklist_cb, userdata);
 }
 
-
-int await_context_ready(pa_mainloop* mainloop, pa_context* pa_ctx) {
+int await_context_state(pa_mainloop* mainloop, pa_context* pa_ctx, pa_state_t expected_state) {
 	FILE* logfile = get_logfile();
 
 	// This hooks up a callback to set pa_ready/keep this int updated
 	int pa_ready = 0;
 	pa_context_set_state_callback(pa_ctx, pa_context_state_cb, &pa_ready);
-	fprintf(logfile, "Awaiting context setup...\n");
+	fprintf(logfile, "Awaiting context state: %s...\n", PA_STATE_LOOKUP[expected_state]);
 	for (int i=0; i < MAX_ITERATIONS; i++) {		
-		//printf("PA Ready state is: %d\n", pa_ready);
+		if (pa_ready == expected_state) {
+			fprintf(logfile, "Context reached expected state: %s\n", PA_STATE_LOOKUP[expected_state]);
+			return 0;
+		}
+		//fprintf(logfile, "PA Ready state is: %d\n", pa_ready);
 		switch (pa_ready) {
+			// We can iterate in either of these states
 			case NOT_READY:
+			case READY:
 				//	fprintf(logfile, "Awaiting context setup... (%d)\n", i);
 				// Block until we get something useful
 				pa_mainloop_iterate(mainloop, 1, NULL);
 				break;
-			case READY:
-				return 0;
 			case ERROR:
 				fprintf(logfile, "PA context encountered an error: %s!\n", pa_strerror(pa_context_errno(pa_ctx)));
 				return 1;
 			case TERMINATED:
+				// As per docs:
+				// " If the connection has terminated by itself, 
+				// then there is no need to explicitly disconnect 
+				// the context using pa_context_disconnect()."
 				fprintf(logfile, "PA Context is terminated (no longer available)!\n");
 				return 1;
 			case UNKOWN:
 				fprintf(logfile, "Unexpected context state!\n");
 				return 1;
-
 		}
 	}
-	fprintf(logfile, "Timed out waiting for PulseAudio server ready state!\n");
+	fprintf(logfile, "Timed out waiting for PulseAudio server state: %s!\n", PA_STATE_LOOKUP[expected_state]);
 	return 1;
 }
 
@@ -331,7 +342,7 @@ int await_operation(pa_mainloop* mainloop, pa_operation* pa_op, pa_context* pa_c
 int perform_operation(pa_mainloop* mainloop, pa_context* pa_ctx, pa_operation* (*callback) (pa_context* pa_ctx, void* cb_userdata), void* userdata) {
 	FILE* logfile = get_logfile();
 	
-	int await_stat = await_context_ready(mainloop, pa_ctx);
+	int await_stat = await_context_state(mainloop, pa_ctx, READY);
 	if (await_stat != 0) {
 		fprintf(logfile, "Awaiting PA Context Ready returned failure code: %d\n", await_stat);
 		return 1;
@@ -348,6 +359,7 @@ int perform_operation(pa_mainloop* mainloop, pa_context* pa_ctx, pa_operation* (
 		
 		if (context_set && pa_op != 0) {
 			int await_op_stat = await_operation(mainloop, pa_op, pa_ctx);
+			
 			// I'd like to call pa_unref here, but it seems to always be 0 ref?
 			if (await_op_stat != 0) {
 				fprintf(logfile, "Awaiting PA Operation returned failure code: %d\n", await_stat);
@@ -489,7 +501,7 @@ int setup_record_stream(const char* device_name, int sink_idx, pa_mainloop* main
 int perform_read(const char* device_name, int sink_idx, pa_mainloop* mainloop, pa_context* pa_ctx, record_stream_data_t* stream_read_data, int* mainloop_retval ) {
 	FILE* logfile = get_logfile();
 	
-	int await_stat = await_context_ready(mainloop, pa_ctx);
+	int await_stat = await_context_state(mainloop, pa_ctx, READY);
 	if (await_stat != 0) {
 		fprintf(logfile, "Awaiting PA Context Ready returned failure code: %d\n", await_stat);
 		return 1;
@@ -546,14 +558,16 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
     // Define our pulse audio loop and connection variables
     pa_mainloop* mainloop = NULL;
 	pa_mainloop_api* pa_mlapi = NULL;
-    pa_context* pa_ctx = 0;
+    pa_context* pa_ctx = NULL;
 	get_pa_context("sink-list", &mainloop, &pa_mlapi, &pa_ctx);
 	
 	pa_context_connect(pa_ctx, NULL, 0 , NULL);
 
 	perform_operation(mainloop, pa_ctx, get_sink_list, output_devices);
+	pa_disconnect_context(&pa_ctx);
 	pa_disconnect(&pa_ctx, &mainloop);
 
+	
 	int dev_count = 0;
 	for (int i=0; i < DEVICE_MAX; i++){
 		
@@ -586,7 +600,7 @@ int record_device(pa_device_t device, record_stream_data_t** stream_read_data) {
     // Define our pulse audio loop and connection variables
     pa_mainloop* mainloop = NULL;
 	pa_mainloop_api* pa_mlapi = NULL;
-    pa_context* pa_ctx = 0;
+    pa_context* pa_ctx = NULL;
 
     int mainloop_retval = 0;
 	get_pa_context("visualiser-pcm-recording", &mainloop, &pa_mlapi, &pa_ctx);
@@ -606,6 +620,8 @@ int record_device(pa_device_t device, record_stream_data_t** stream_read_data) {
 		//(*buffer_size) = 0;
 	}
 	
+	// why does this hang the thread?
+	//pa_disconnect_context(&pa_ctx);
 	pa_disconnect(&pa_ctx, &mainloop);
 	fflush(logfile);
 	return 0;
