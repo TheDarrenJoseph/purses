@@ -1,9 +1,27 @@
 #pragma once
 
 #include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
 #include <pulse/pulseaudio.h>
+
+#define MAX_ITERATIONS 50000
+#define DEVICE_MAX 16
+
+// 44100 Hz sample rate
+#define SAMPLE_RATE 512
+
+static const size_t BUFFER_BYTE_COUNT = SAMPLE_RATE;
+
+// Signed 16 integer bit PCM, little endian
+// Single channel (mono) to ease processing
+static const pa_sample_spec mono_ss = {
+	.format = PA_SAMPLE_S16LE,
+	.rate = BUFFER_BYTE_COUNT,
+	.channels = 1
+};
 
 // Field list is here: http://0pointer.de/lennart/projects/pulseaudio/doxygen/structpa__sink__info.html
 typedef struct pa_device {
@@ -17,7 +35,7 @@ typedef struct pa_device {
 
 typedef struct record_stream_data {
   // signed 16-bit integers, size power of 2
-  signed int data[512];
+  int16_t data[SAMPLE_RATE];
   int data_size;
 } record_stream_data_t;
 

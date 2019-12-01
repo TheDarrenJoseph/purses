@@ -18,17 +18,19 @@ void ct_fft(record_stream_data_t* input_data) {
 	fprintf(logfile, "FFT Processing %d bytes.\n", size_n);
 	
 	// Signed int is atleast 16 bits in size
-	signed int* data_n = input_data -> data;
+	int16_t* data_n = input_data -> data;
 	
 	// TODO Implement, for now just show our data
 	// 1. DFT even/odd indices
 	fprintf(logfile, "FFT Processing even indices.\n");
 	for (int i=0; i < size_n; i++) {
-		unsigned int data_i = data_n[i];
+		
+		// signed int is at least 16 bits, so we can cast our 16-bit PCM sample into this
+		signed int data_i = (signed int) data_n[i];
 		if ((i%2) == 0) {
-			fprintf(logfile, "(Even) Processing byte (%d): %u\n", i, data_i);
+			fprintf(logfile, "(Even) Processing byte (%d): %d\n", i, data_i);
 		} else {
-			fprintf(logfile, "(Odd) Processing byte (%d): %u\n", i, data_i);
+			fprintf(logfile, "(Odd) Processing byte (%d): %d\n", i, data_i);
 		}
 	}
 }

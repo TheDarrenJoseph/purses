@@ -7,25 +7,6 @@
 #include <pulsehandler.h>
 #include <shared.h>
 
-#define MAX_ITERATIONS 50000
-#define DEVICE_MAX 16
-
-const size_t BUFFER_BYTE_COUNT = 512;
-
-bool BUFFER_FILLED = false;
-bool STREAM_READ_LOCK = false;
-
-int buffer_nbytes = 0;
-int sink_count = 0;
-    
-// Signed 16 integer bit PCM, little endian
-// Single channel (mono) to ease processing
-static const pa_sample_spec mono_ss = {
-	.format = PA_SAMPLE_S16LE,
-	.rate = 44100,
-	.channels = 1
-};
-
 /*
 // Unsigned 8 Bit PCM for simple byte mapping on read
 static const pa_sample_spec mono_ss = {
@@ -34,6 +15,10 @@ static const pa_sample_spec mono_ss = {
 	.channels = 1
 };*/
 
+static bool BUFFER_FILLED = false;
+static bool STREAM_READ_LOCK = false;
+static int buffer_nbytes = 0;
+static int sink_count = 0;
 
 void quit_mainloop(pa_mainloop* mainloop, int retval) {
 	if (mainloop != NULL) pa_mainloop_quit(mainloop, retval);
@@ -387,11 +372,11 @@ int read_data(const void* data, record_stream_data_t* data_output, long int buff
 	//fprintf(logfile, "Reading stream, %ld/%ld bytes\n", read_bytes, initial_nbytes);
 	for (long int i=0; i < buffer_size; i++, (*read_bytes)++) {
 		//fprintf(logfile, "Reading stream %ld/%ld\n", i+1, BUFFER_BYTE_COUNT);
-		const unsigned int* data_p = data;
+		const int16_t* data_p = data;
 		// Our format should correspond to signed int of minimum 16 bits
 		// Set the variable in our output data to match
-		data_output -> data[i] = data_p[i];
-		//fprintf(logfile, "index: %ld, data: %d\n", i , i_data);
+		data_output -> data[i] = (int16_t) data_p[i];
+		fprintf(logfile, "index: %ld, data: %d\n", i , (signed int) data_p[i]);
 	}
 	fprintf(logfile, "Read %ld bytes from the stream.\n", BUFFER_BYTE_COUNT);
 	return 0;
