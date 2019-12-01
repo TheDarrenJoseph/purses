@@ -16,7 +16,8 @@ typedef struct pa_device {
 
 
 typedef struct record_stream_data {
-  unsigned int data[512];
+  // signed 16-bit integers, size power of 2
+  signed int data[512];
   int data_size;
 } record_stream_data_t;
 
