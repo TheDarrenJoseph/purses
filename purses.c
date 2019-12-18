@@ -147,11 +147,11 @@ int main(void) {
 	record_device(main_device, &stream_read_data);
 	printw("Recording complete...\n");
 	
-	write_to_file(stream_read_data, "white.bin");
+	write_to_file(stream_read_data, "record.bin");
 	
 	record_stream_data_t* file_read_data = 0;
-	init_record_data(&file_read_data);
-	read_from_file(file_read_data, "white.bin");
+	//init_record_data(&file_read_data);
+	//read_from_file(file_read_data, "record.bin");
 	
 	// FFT The PCM Data
 	//ct_fft(stream_read_data);
