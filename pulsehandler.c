@@ -563,7 +563,7 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
 	pa_context_connect(pa_ctx, NULL, 0 , NULL);
 
 	perform_operation(mainloop, pa_ctx, get_sink_list, output_devices);
-	pa_disconnect_context(&pa_ctx);
+	//pa_disconnect_context(&pa_ctx);
 	pa_disconnect(&pa_ctx, &mainloop);
 
 	
