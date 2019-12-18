@@ -7,13 +7,7 @@
 #include <string.h>
 #include <pulse/pulseaudio.h>
 
-#define MAX_ITERATIONS 50000
-#define DEVICE_MAX 16
-
-// 44100 Hz sample rate
-#define SAMPLE_RATE 512
-
-static const size_t BUFFER_BYTE_COUNT = SAMPLE_RATE;
+#include <shared.h>
 
 // Signed 16 integer bit PCM, little endian
 // Single channel (mono) to ease processing
@@ -31,13 +25,6 @@ typedef struct pa_device {
 	uint32_t index;
 	char description[256];
 } pa_device_t;
-
-
-typedef struct record_stream_data {
-  // signed 16-bit integers, size power of 2
-  int16_t data[SAMPLE_RATE];
-  int data_size;
-} record_stream_data_t;
 
 static const char* PA_STATE_LOOKUP[5] = {"NOT_READY", "READY", "ERROR", "TERMINATED", "UNKOWN" };
 
