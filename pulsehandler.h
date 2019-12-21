@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
+#include <math.h>
 #include <pulse/pulseaudio.h>
 
 #include <shared.h>

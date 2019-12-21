@@ -18,6 +18,19 @@ typedef struct record_stream_data {
   int data_size;
 } record_stream_data_t;
 
+// Complex Number
+typedef struct complex {
+  double real;
+  double imaginary;
+} complex_t;
+
+// Complex Number
+typedef struct complex_n {
+  complex_t* data;
+  int data_size;
+} complex_n_t;
+
+
 FILE* get_logfile();
 int close_logfile();
 int println (char* format, va_list vlist);

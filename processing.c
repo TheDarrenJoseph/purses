@@ -1,5 +1,49 @@
+#include <processing.h>
 #include <pulsehandler.h>
 #include <shared.h>
+#include <math.h>
+
+/**
+ * Performs a Discrete Fourier Transform 
+ * x - a pointer to a series of complex number inputs
+ **/
+void dft(complex_n_t* x, complex_n_t* X) {
+	
+	int N = x -> data_size;
+	
+	// initialise output
+	X = (complex_n_t*) malloc(sizeof(complex_n_t));
+	X -> data_size = N;
+	
+	// Output index (k)
+	for (int k=0; k < N; k++) {
+		complex_t out_data = X -> data[k];
+		
+		// Initialise output (Xk)
+		double real_out = out_data.real;
+		double im_out = out_data.imaginary;
+		real_out = 0.00;
+		im_out = 0.00;
+		
+		// Summation over input index (xn)
+		for (int n=0; n < N; n++){
+			complex_t in_data = x -> data[n];
+			double real_xn = in_data.real;
+			double im_xn = in_data.imaginary;
+			
+			// Multiply xn by our complex exponent
+			//xn * e^-((i^2*M_PI*k*n)/N)
+			
+			// Now for Eueler's formula
+			// e^xi = cos(x) + i*sin(x)
+			// Where i is imaginary
+			// x is the angle in radians
+			double x = 2*M_PI*k*n / N;
+			real_out += (real_xn * cos(x)) + (im_xn * sin(x));
+			im_out += (-real_xn * sin(x)) + (im_xn * cos(x));
+		}	
+	}
+}
 
 
 // Output will be Audo Frequency (Hz/kHZ) mapped to a rough frequency scale (i.e 1..10); 
