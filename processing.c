@@ -3,28 +3,43 @@
 #include <shared.h>
 #include <math.h>
 
+
+/**
+ *The magnitude (absolute value) of a complex number is found by:
+ * sqrt(a^2 + b^2) where a is the real number, and b is the imaginary
+ **/
+double magnitude(complex_t input) {
+	return sqrt(pow(input.real,2)+pow(input.imaginary,2));
+}
+
+void set_magnitude(complex_n_t* x, int sample_rate, int sample_count) {
+	// Nyquist limit == sample_rate/2
+	int nyquist_lim = sample_rate/2;
+	for (int i=0; i<nyquist_lim; i++) {
+		// Calculate magnitude
+		// We must double values below this limit
+		x -> data[i].magnitude = (magnitude(x -> data[i])*2 / sample_count);
+	}
+}
+
 /**
  * Performs a Discrete Fourier Transform 
  * x - a pointer to a series of complex number inputs
  **/
 void dft(complex_n_t* x, complex_n_t* X) {
 	
+	printf("Running DFT...\n");
 	int N = x -> data_size;
-	
-	// initialise output
-	X = (complex_n_t*) malloc(sizeof(complex_n_t));
-	X -> data_size = N;
-	
 	// Output index (k)
 	for (int k=0; k < N; k++) {
-		complex_t out_data = X -> data[k];
+		printf("DFT output (%d)...\n", k);
+
+		complex_t* out_data = &X -> data[k];
 		
 		// Initialise output (Xk)
-		double real_out = out_data.real;
-		double im_out = out_data.imaginary;
-		real_out = 0.00;
-		im_out = 0.00;
-		
+		double* real_out = &(*out_data).real;
+		double* im_out = &(*out_data).imaginary;
+
 		// Summation over input index (xn)
 		for (int n=0; n < N; n++){
 			complex_t in_data = x -> data[n];
@@ -39,8 +54,9 @@ void dft(complex_n_t* x, complex_n_t* X) {
 			// Where i is imaginary
 			// x is the angle in radians
 			double x = 2*M_PI*k*n / N;
-			real_out += (real_xn * cos(x)) + (im_xn * sin(x));
-			im_out += (-real_xn * sin(x)) + (im_xn * cos(x));
+			(*real_out) += (real_xn * cos(x)) + (im_xn * sin(x));
+			(*im_out) += (-real_xn * sin(x)) + (im_xn * cos(x));
+			// printf("(Output %d/%d) Real: %02f, Imaginary: %02f\n", k, n, (*real_out), (*im_out));
 		}	
 	}
 }

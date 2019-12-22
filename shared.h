@@ -22,6 +22,7 @@ typedef struct record_stream_data {
 typedef struct complex {
   double real;
   double imaginary;
+  double magnitude;
 } complex_t;
 
 // Complex Number
