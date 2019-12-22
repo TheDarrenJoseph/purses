@@ -52,7 +52,7 @@ void print_data(complex_n_t* samples, int sample_rate) {
 
 // Simple unit test functions to check we're on-point with our algos
 // Credits to Simon Xu for the example
-void test_dft() {
+void test_dft_1hz_8hz() {
 	
 	int sample_rate = 8;
 	complex_t empty = { 0.0 , 0.0 };
@@ -122,29 +122,10 @@ void test_dft() {
 	assert_complex((complex_t) {0.00, 0.00}, output_data[5]);
 	assert_complex((complex_t) {0.00, 0.00}, output_data[6]);
 	assert_complex((complex_t) {0.00, 4.00}, output_data[7]);
-	
-	/**
-	assert(output_data[1].real == 0.00);
-	assert(output_data[1].imaginary == -4.00);
-	assert(output_data[2].real == 0.00);
-	assert(output_data[2].imaginary == 0.00);
-	assert(output_data[3].real == 0.00);
-	assert(output_data[3].imaginary == 0.00);
-	assert(output_data[4].real == 0.00);
-	assert(output_data[4].imaginary == 0.00);
-	assert(output_data[5].real == 0.00);
-	assert(output_data[5].imaginary == 0.00);
-	assert(output_data[6].real == 0.00);
-	assert(output_data[6].imaginary == 0.00);
-	assert(output_data[7].real == 0.00);
-	assert(output_data[7].imaginary == 4.00);
-	*/
-	
-	
 }
 
 
 int main(void) {
-	test_dft();
+	test_dft_1hz_8hz();
 	printf("=== Tests Complete ===\n");
 }
