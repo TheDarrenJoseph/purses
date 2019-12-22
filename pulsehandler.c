@@ -461,6 +461,7 @@ int setup_record_stream(const char* device_name, int sink_idx, pa_mainloop* main
 	
 	const pa_sample_spec * ss = &mono_ss;
 	pa_channel_map map;
+	fprintf(logfile, "Initialising record stream, sample spec: %d channel(s) @ %dHz\n", ss -> channels, ss -> rate);
 	pa_channel_map_init_mono(&map);
 
 	// pa_stream_new for PCM
