@@ -18,7 +18,7 @@ void set_magnitude(complex_n_t* x, int sample_rate, int sample_count) {
 	for (int i=0; i<nyquist_lim; i++) {
 		// Calculate magnitude
 		// We must double values below this limit
-		x -> data[i].magnitude = (magnitude(x -> data[i])*2 / sample_count);
+		x -> data[i].magnitude = ((magnitude(x -> data[i])*2) / sample_count);
 	}
 }
 

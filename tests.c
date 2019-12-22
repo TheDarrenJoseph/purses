@@ -45,8 +45,7 @@ void print_data(complex_n_t* samples, int sample_rate) {
 		double realval = sample.real;
 		double imval = sample.imaginary;
 		double mag = sample.magnitude;
-		printf("(%d - %dHz) - Real: %.2f, Imaginary: %.2f\n", i, frequency, realval, imval);
-		printf("(%d - %dHz) Magnitude: %.2f\n", i, frequency, mag);
+		printf("(%d - %dHz) - Real: %.2f, Imaginary: %.2f, Magnitude: %.2f\n", i, frequency, realval, imval, mag);
 	}
 }
 
@@ -124,8 +123,64 @@ void test_dft_1hz_8hz() {
 	assert_complex((complex_t) {0.00, 4.00}, output_data[7]);
 }
 
+void test_dft_white_512hz() {
+		complex_t empty = { 0.0 , 0.0 };
+	
+		// 1. Read input from white noise file
+		// 512 16 bit PCM samples @ 512Hz
+		int sample_rate = 512;
+		int sample_count = 512; // TODO Make this 10x the sample rate for 10Hz increments, etc
+		int16_t* recorded_samples = (int16_t*) malloc(sizeof(int16_t) * sample_count);
+		record_stream_data_t* file_read_data = 0;
+		init_record_data(&file_read_data);
+
+		read_from_file(file_read_data, "white.bin");
+
+		// 2. Convert these into complex_t types with 0 imaginary
+		
+		// Initialise the complex samples
+		complex_n_t* complex_samples = (complex_n_t*) malloc(sizeof(complex_n_t));
+		complex_samples -> data_size = sample_count;
+		complex_samples -> data = (complex_t*) malloc(sizeof(complex_t) * sample_count);
+		complex_t* data = complex_samples -> data;
+		
+		for (int i=0; i<sample_count; i++) {
+			int16_t sample = file_read_data -> data[i];
+			printf("Read sample (%d) : %d\n", i, sample);
+			
+			data[i].real = (double) sample;
+			data[i].imaginary = 0.00;
+			data[i].magnitude = 0.00;
+		}
+		
+		printf("=== Input Data ===\n");
+		print_data(complex_samples, sample_rate);
+
+		
+		// 3. Run through DFT
+		complex_n_t* output = (complex_n_t*) malloc(sizeof(complex_n_t));
+		output -> data_size = sample_count;
+		output -> data = (complex_t*) malloc(sizeof(complex_t) * sample_count);
+		for (int i=0; i<sample_count; i++) {
+			output -> data[i] = empty;
+		}
+		dft(complex_samples, output);
+		set_magnitude(output, sample_rate, sample_count);
+		
+		// 4. Assert output magnitude agrees for all frequencies
+		// Frequency resolution is 1Hz (512/512)
+		// So we have output of 0-512Hz covered
+		int freq_resolution = sample_rate / sample_count;	
+		printf("Frequency Resolution: %dHz\n", freq_resolution);
+		
+		printf("=== Output Data ===\n");
+		print_data(output, sample_rate);
+		
+}
+
 
 int main(void) {
 	test_dft_1hz_8hz();
+	//test_dft_white_512hz();
 	printf("=== Tests Complete ===\n");
 }
