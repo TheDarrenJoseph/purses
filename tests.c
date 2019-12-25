@@ -128,7 +128,7 @@ void test_dft_1hz_8hz() {
 	assert_complex(CMPLX(0.00, 4.00), output_data[7].complex_number);
 }
 
-/**
+
 void test_dft_white_512hz() {
 		double complex empty = CMPLX(0.00, 0.0);
 	
@@ -145,17 +145,15 @@ void test_dft_white_512hz() {
 		// 2. Convert these into complex_t types with 0 imaginary
 		
 		// Initialise the complex samples
-		complex_n_t* complex_samples = (complex_n_t*) malloc(sizeof(complex_n_t));
+		complex_set_t* complex_samples = (complex_set_t*) malloc(sizeof(complex_set_t));
 		complex_samples -> data_size = sample_count;
-		complex_samples -> data = (complex_t*) malloc(sizeof(complex_t) * sample_count);
-		complex_t* data = complex_samples -> data;
+		complex_samples -> complex_numbers = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * sample_count);
+		complex_wrapper_t* data = complex_samples -> complex_numbers;
 		
 		for (int i=0; i<sample_count; i++) {
 			int16_t sample = file_read_data -> data[i];
 			printf("Read sample (%d) : %d\n", i, sample);
-			
-			data[i].real = (double) sample;
-			data[i].imaginary = 0.00;
+			data[i].complex_number = CMPLX((double) sample, 0.00);
 			data[i].magnitude = 0.00;
 		}
 		
@@ -164,11 +162,12 @@ void test_dft_white_512hz() {
 
 		
 		// 3. Run through DFT
-		complex_n_t* output = (complex_n_t*) malloc(sizeof(complex_n_t));
+		complex_set_t* output = (complex_set_t*) malloc(sizeof(complex_set_t));
 		output -> data_size = sample_count;
-		output -> data = (complex_t*) malloc(sizeof(complex_t) * sample_count);
+		output -> complex_numbers = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * sample_count);
 		for (int i=0; i<sample_count; i++) {
-			output -> data[i] = empty;
+			output -> complex_numbers[i].complex_number = empty;
+			output -> complex_numbers[i].magnitude = 0.00;
 		}
 		dft(complex_samples, output);
 		set_magnitude(output, sample_count);
@@ -183,10 +182,10 @@ void test_dft_white_512hz() {
 		print_data(output, sample_rate);
 		
 }
-**/
+
 
 int main(void) {
 	test_dft_1hz_8hz();
-	//test_dft_white_512hz();
+	test_dft_white_512hz();
 	printf("=== Tests Complete ===\n");
 }
