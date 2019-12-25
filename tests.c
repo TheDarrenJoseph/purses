@@ -10,12 +10,12 @@
 
 #define EPS 0.01
 
-void assert_complex(complex_t expected, complex_t actual) {	
+void assert_complex(double complex expected, double complex actual) {	
 	
-	double expected_real = expected.real;
-	double expected_imag = expected.imaginary;
-	double actual_real = actual.real;
-	double actual_imag = actual.imaginary;
+	double expected_real = creal(expected);
+	double expected_imag = cimag(expected);
+	double actual_real = creal(actual);
+	double actual_imag = cimag(actual);
 		
 	// Use absolute to get positive numbers
 	double real_diff = (fabs(expected_real - actual_real));
@@ -24,7 +24,7 @@ void assert_complex(complex_t expected, complex_t actual) {
 	// Check the diffs are below our Epsilon threshold
 	if (!((real_diff < EPS) && (imag_diff < EPS))) {
 		printf("Assertion failed!\nExpected Real: %.2f Imag: %.2f\nActual Real: %.2f, Imag: %.2f\n", 
-		expected.real, expected.imaginary, actual.real, actual.imaginary);
+		expected_real, expected_imag, actual_real, actual_imag);
 		
 		printf("Real diff: %.2f, Imag diff: %.2f, Epsilon: %.4f\n", real_diff, imag_diff, EPS);
 		
@@ -33,7 +33,7 @@ void assert_complex(complex_t expected, complex_t actual) {
 }
 
 
-void print_data(complex_n_t* samples, int sample_rate) {
+void print_data(complex_set_t* samples, int sample_rate) {
 	int data_size = samples -> data_size;
 	int nyquist = data_size / 2;
 	// Frequency resolution = Sampling Freq / Sample Count
@@ -41,10 +41,13 @@ void print_data(complex_n_t* samples, int sample_rate) {
 	printf("Frequency Resolution: %dHz\n", freq_resolution);
 	for (int i=0; i<nyquist; i++) {
 		int frequency = freq_resolution * i;
-		complex_t sample = samples -> data[i];
-		double realval = sample.real;
-		double imval = sample.imaginary;
-		double mag = sample.magnitude;
+		struct complex_wrapper wrapper = samples -> complex_numbers[i];
+		
+		complex double complex_val = wrapper.complex_number;
+		
+		double realval = creal(complex_val);
+		double imval = cimag(complex_val);
+		double mag = wrapper.magnitude;
 		printf("(%d - %dHz) - Real: %.2f, Imaginary: %.2f, Magnitude: %.2f\n", i, frequency, realval, imval, mag);
 	}
 }
@@ -54,52 +57,52 @@ void print_data(complex_n_t* samples, int sample_rate) {
 void test_dft_1hz_8hz() {
 	
 	int sample_rate = 8;
-	complex_t empty = { 0.0 , 0.0 };
+	double complex empty = CMPLX(0.00, 0.0);
 
 	// Test scenario, 1 second of recording, 8 samples (bytes) at 8Hz
 	// of sine wave 1Hz, so we have 8 samples our our 1Hz wave
 	// Allocate stuct memory space
 
-	complex_n_t* complex_samples = (complex_n_t*) malloc(sizeof(complex_n_t));
+	complex_set_t* complex_samples = (complex_set_t*) malloc(sizeof(complex_set_t));
 	complex_samples -> data_size = 8;
-	complex_t* data = complex_samples -> data;
-	data = (complex_t*) malloc(sizeof(complex_t) * 8);
+	complex_wrapper_t* data = complex_samples -> complex_numbers;
+	data = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * 8);
 	
-	complex_t sample0 = { 0.0 , 0.0 };
-	complex_t sample1 = { 0.707 , 0.0 };
-	complex_t sample2 = { 1.0 , 0.0 };
-	complex_t sample3 = { 0.707 , 0.0 };
-	complex_t sample4 = { 0.0 , 0.0 }; // And inverse
-	complex_t sample5 = { -0.707, 0.0 };
-	complex_t sample6 = { -1.0, 0.0 };
-	complex_t sample7 = { -0.707 , 0.0 };
+	double complex sample0 = CMPLX(0.0 , 0.0);
+	double complex sample1 = CMPLX(0.707 , 0.0);
+	double complex sample2 = CMPLX(1.0 , 0.0);
+	double complex sample3 = CMPLX(0.707 , 0.0);
+	double complex sample4 = CMPLX(0.0 , 0.0); // And inverse
+	double complex sample5 = CMPLX(-0.707, 0.0);
+	double complex sample6 = CMPLX(-1.0, 0.0);
+	double complex sample7 = CMPLX(-0.707 , 0.0);
 	
 	
-	data[0] = sample0;
-	data[1] = sample1;
-	data[2] = sample2;
-	data[3] = sample3;
-	data[4] = sample4;
-	data[5] = sample5;
-	data[6] = sample6;
-	data[7] = sample7;
-	complex_samples -> data = data;
+	data[0].complex_number = sample0;
+	data[1].complex_number = sample1;
+	data[2].complex_number = sample2;
+	data[3].complex_number = sample3;
+	data[4].complex_number = sample4;
+	data[5].complex_number = sample5;
+	data[6].complex_number = sample6;
+	data[7].complex_number = sample7;
+	complex_samples -> complex_numbers = data;
 	
 	printf("=== Input Data ===\n");
 	print_data(complex_samples, sample_rate);
 	
-	complex_n_t* output = (complex_n_t*) malloc(sizeof(complex_n_t));
+	complex_set_t* output = (complex_set_t*) malloc(sizeof(complex_set_t));
 	output -> data_size = 8;
-	output -> data = (complex_t*) malloc(sizeof(complex_t) * 8);
+	output -> complex_numbers = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * 8);
 	for (int i=0; i<8; i++) {
-		output -> data[i] = empty;
+		output -> complex_numbers[i] = (complex_wrapper_t) { empty, 0.0 };
 	}
 	
 	printf("=== Result Data (Empty) ===\n");
 	print_data(output, sample_rate);
 	
 	dft(complex_samples, output);
-	set_magnitude(output, sample_rate, 8);
+	set_magnitude(output, 8);
 	
 	// Nyquist limit == sample_rate/2
 	int nyquist_lim = sample_rate/2;
@@ -112,19 +115,20 @@ void test_dft_1hz_8hz() {
 
 	
 	// Any complex number whos imaginary part is 0 can be treated as a real
-	complex_t* output_data = output -> data;
-	assert_complex((complex_t) {0.00, 0.00}, output_data[0]);
-	assert_complex((complex_t) {0.00, -4.00}, output_data[1]);
-	assert_complex((complex_t) {0.00, 0.00}, output_data[2]);
-	assert_complex((complex_t) {0.00, 0.00}, output_data[3]);
-	assert_complex((complex_t) {0.00, 0.00}, output_data[4]);
-	assert_complex((complex_t) {0.00, 0.00}, output_data[5]);
-	assert_complex((complex_t) {0.00, 0.00}, output_data[6]);
-	assert_complex((complex_t) {0.00, 4.00}, output_data[7]);
+	complex_wrapper_t* output_data = output -> complex_numbers;
+	assert_complex(CMPLX(0.00, 0.00), output_data[0].complex_number);
+	assert_complex(CMPLX(0.00, -4.00), output_data[1].complex_number);
+	assert_complex(CMPLX(0.00, 0.00), output_data[2].complex_number);
+	assert_complex(CMPLX(0.00, 0.00), output_data[3].complex_number);
+	assert_complex(CMPLX(0.00, 0.00), output_data[4].complex_number);
+	assert_complex(CMPLX(0.00, 0.00), output_data[5].complex_number);
+	assert_complex(CMPLX(0.00, 0.00), output_data[6].complex_number);
+	assert_complex(CMPLX(0.00, 4.00), output_data[7].complex_number);
 }
 
+/**
 void test_dft_white_512hz() {
-		complex_t empty = { 0.0 , 0.0 };
+		double complex empty = CMPLX(0.00, 0.0);
 	
 		// 1. Read input from white noise file
 		// 512 16 bit PCM samples @ 512Hz
@@ -165,7 +169,7 @@ void test_dft_white_512hz() {
 			output -> data[i] = empty;
 		}
 		dft(complex_samples, output);
-		set_magnitude(output, sample_rate, sample_count);
+		set_magnitude(output, sample_count);
 		
 		// 4. Assert output magnitude agrees for all frequencies
 		// Frequency resolution is 1Hz (512/512)
@@ -177,7 +181,7 @@ void test_dft_white_512hz() {
 		print_data(output, sample_rate);
 		
 }
-
+**/
 
 int main(void) {
 	test_dft_1hz_8hz();

@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <complex.h>
 
 #define MAX_ITERATIONS 50000
 #define DEVICE_MAX 16
@@ -19,17 +20,17 @@ typedef struct record_stream_data {
 } record_stream_data_t;
 
 // Complex Number
-typedef struct complex {
-  double real;
-  double imaginary;
-  double magnitude;
-} complex_t;
 
-// Complex Number
-typedef struct complex_n {
-  complex_t* data;
+typedef struct complex_wrapper {
+  double complex complex_number;
+  double magnitude;
+} complex_wrapper_t;
+
+// For use with native complex.h 
+typedef struct complex_set {
+  complex_wrapper_t* complex_numbers;
   int data_size;
-} complex_n_t;
+} complex_set_t;
 
 
 FILE* get_logfile();

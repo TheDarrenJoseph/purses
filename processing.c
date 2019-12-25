@@ -8,17 +8,22 @@
  *The magnitude (absolute value) of a complex number is found by:
  * sqrt(a^2 + b^2) where a is the real number, and b is the imaginary
  **/
+/**
 double magnitude(complex_t input) {
 	return sqrt(pow(input.real,2)+pow(input.imaginary,2));
 }
+**/
 
-void set_magnitude(complex_n_t* x, int sample_rate, int sample_count) {
-	// Nyquist limit == sample_rate/2
-	int nyquist_lim = sample_rate/2;
-	for (int i=0; i<nyquist_lim; i++) {
+void set_magnitude(complex_set_t* x, int sample_count) {
+	int data_size = x -> data_size;
+	for (int i=0; i<data_size; i++) {
+		
+		struct complex_wrapper* this_val = &(x -> complex_numbers[i]);
+		double complex complex_val = this_val -> complex_number;
+		
 		// Calculate magnitude
 		// We must double values below this limit
-		x -> data[i].magnitude = ((magnitude(x -> data[i])*2) / sample_count);
+		x -> complex_numbers[i].magnitude = ((cabs(complex_val)*2) / sample_count);
 	}
 }
 
@@ -26,6 +31,7 @@ void set_magnitude(complex_n_t* x, int sample_rate, int sample_count) {
  * Performs a Discrete Fourier Transform 
  * x - a pointer to a series of complex number inputs
  **/
+/**
 void dft(complex_n_t* x, complex_n_t* X) {
 	
 	printf("Running DFT...\n");
@@ -58,6 +64,44 @@ void dft(complex_n_t* x, complex_n_t* X) {
 			(*im_out) += (-real_xn * sin(x)) + (im_xn * cos(x));
 			// printf("(Output %d/%d) Real: %02f, Imaginary: %02f\n", k, n, (*real_out), (*im_out));
 		}	
+	}
+}
+**/
+
+void dft(complex_set_t* x, complex_set_t* X) {
+	printf("Running DFT...\n");
+	int N = x -> data_size;
+	// Output index (k)
+	for (int k=0; k < N; k++) {
+		printf("DFT output (%d)...\n", k);
+		
+		// Initialise output (Xk)
+		double real_out = 0.0;
+		double im_out = 0.0;
+		
+		// Summation over input index (xn)
+		for (int n=0; n < N; n++){
+			struct complex_wrapper* in_data = &(x -> complex_numbers[n]);
+			double real_xn = creal(in_data -> complex_number);
+			double im_xn =  cimag(in_data -> complex_number);
+			
+			// Multiply xn by our complex exponent
+			//xn * e^-((i^2*M_PI*k*n)/N)
+			
+			// Now for Eueler's formula
+			// e^xi = cos(x) + i*sin(x)
+			// Where i is imaginary
+			// x is the angle in radians
+			double rads = 2*M_PI*k*n / N;
+			real_out += (real_xn * cos(rads)) + (im_xn * sin(rads));
+			im_out += (-real_xn * sin(rads)) + (im_xn * cos(rads));
+			
+			// printf("(Output %d/%d) Real: %02f, Imaginary: %02f\n", k, n, (*real_out), (*im_out));
+		}	
+		
+		
+		double complex output = CMPLX(real_out, im_out);
+		X -> complex_numbers[k].complex_number = output;
 	}
 }
 
