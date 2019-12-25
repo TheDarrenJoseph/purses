@@ -18,18 +18,20 @@ void assert_complex(double complex expected, double complex actual) {
 	double actual_imag = cimag(actual);
 		
 	// Use absolute to get positive numbers
-	double real_diff = (fabs(expected_real - actual_real));
-	double imag_diff = (fabs(expected_imag - actual_imag));
+	double diff = (fabs(expected - actual));
 		
 	// Check the diffs are below our Epsilon threshold
-	if (!((real_diff < EPS) && (imag_diff < EPS))) {
+	if (!((diff < EPS))) {
 		printf("Assertion failed!\nExpected Real: %.2f Imag: %.2f\nActual Real: %.2f, Imag: %.2f\n", 
 		expected_real, expected_imag, actual_real, actual_imag);
 		
-		printf("Real diff: %.2f, Imag diff: %.2f, Epsilon: %.4f\n", real_diff, imag_diff, EPS);
+		printf("diff: %.2f, Epsilon: %.4f\n", diff, EPS);
 		
 		exit(1);
-	}	
+	} else {
+			printf("Assering:\nExpected Real: %.2f Imag: %.2f\nActual Real: %.2f, Imag: %.2f\n", 
+		expected_real, expected_imag, actual_real, actual_imag);
+	}
 }
 
 
