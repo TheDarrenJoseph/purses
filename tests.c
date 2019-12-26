@@ -37,21 +37,24 @@ void assert_complex(double complex expected, double complex actual) {
 
 void print_data(complex_set_t* samples, int sample_rate) {
 	int data_size = samples -> data_size;
-	int nyquist = data_size / 2;
 	// Frequency resolution = Sampling Freq / Sample Count
 	int freq_resolution = sample_rate / data_size;	
 	printf("Frequency Resolution: %dHz\n", freq_resolution);
-	for (int i=0; i<nyquist; i++) {
+	
+	double sum = 0.0;
+	for (int i=0; i<data_size; i++) {
 		int frequency = freq_resolution * i;
 		struct complex_wrapper wrapper = samples -> complex_numbers[i];
 		
 		complex double complex_val = wrapper.complex_number;
 		
 		double realval = creal(complex_val);
+		sum += realval;
 		double imval = cimag(complex_val);
 		double mag = wrapper.magnitude;
 		printf("(%d - %dHz) - Real: %.2f, Imaginary: %.2f, Magnitude: %.2f\n", i, frequency, realval, imval, mag);
 	}
+	
 }
 
 // Simple unit test functions to check we're on-point with our algos
@@ -104,6 +107,7 @@ void test_dft_1hz_8hz() {
 	print_data(output, sample_rate);
 	
 	dft(complex_samples, output);
+	nyquist_filter(output, 8);
 	set_magnitude(output, 8);
 	
 	// Nyquist limit == sample_rate/2
@@ -129,18 +133,18 @@ void test_dft_1hz_8hz() {
 }
 
 
-void test_dft_white_512hz() {
+void test_dft_10khz_44100hz() {
 		double complex empty = CMPLX(0.00, 0.0);
 	
 		// 1. Read input from white noise file
-		// 512 16 bit PCM samples @ 512Hz
-		int sample_rate = 512;
-		int sample_count = 512; // TODO Make this 10x the sample rate for 10Hz increments, etc
+		// 44100 16 bit PCM samples @ 44100Hz
+		int sample_rate = 44100;
+		int sample_count = 44100; // TODO Make this 10x the sample rate for 10Hz increments, etc
 		int16_t* recorded_samples = (int16_t*) malloc(sizeof(int16_t) * sample_count);
 		record_stream_data_t* file_read_data = 0;
 		init_record_data(&file_read_data);
 
-		read_from_file(file_read_data, "white.bin");
+		read_from_file(file_read_data, "record.bin");
 
 		// 2. Convert these into complex_t types with 0 imaginary
 		
@@ -170,7 +174,9 @@ void test_dft_white_512hz() {
 			output -> complex_numbers[i].magnitude = 0.00;
 		}
 		dft(complex_samples, output);
+		nyquist_filter(output, sample_count);
 		set_magnitude(output, sample_count);
+
 		
 		// 4. Assert output magnitude agrees for all frequencies
 		// Frequency resolution is 1Hz (512/512)
@@ -186,6 +192,6 @@ void test_dft_white_512hz() {
 
 int main(void) {
 	test_dft_1hz_8hz();
-	test_dft_white_512hz();
+	//test_dft_10khz_44100hz();
 	printf("=== Tests Complete ===\n");
 }

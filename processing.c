@@ -3,16 +3,28 @@
 #include <shared.h>
 #include <math.h>
 
-
 /**
- *The magnitude (absolute value) of a complex number is found by:
- * sqrt(a^2 + b^2) where a is the real number, and b is the imaginary
- **/
-/**
-double magnitude(complex_t input) {
-	return sqrt(pow(input.real,2)+pow(input.imaginary,2));
+ * Due to the Nyquist limit (half of the sampling rate) 
+ * We need to remove data samples above this frequency limit (zero them)
+ * As well as double the remaining values to adjust for this
+ **/ 
+void nyquist_filter(complex_set_t* x, int sample_rate) {
+	int nyquist_frequency = sample_rate / 2;
+	int data_size = x -> data_size;
+	int freq_resolution = sample_rate / data_size;		
+	// Use the frequency resolution (step in Hz) to check against this limit
+	int frequency = 0;
+	for (int i=0; i<data_size; i++, frequency += freq_resolution){
+		
+		double complex* complex_sample = &(x -> complex_numbers[i].complex_number);
+		if (frequency < nyquist_frequency) {
+			printf("Adjusting: %.2f\n", creal((*complex_sample)));
+			(*complex_sample) *= 2;
+		} else {
+			(*complex_sample) = CMPLX(0.0, 0.0);
+		}
+	}
 }
-**/
 
 void set_magnitude(complex_set_t* x, int sample_count) {
 	int data_size = x -> data_size;
@@ -22,51 +34,10 @@ void set_magnitude(complex_set_t* x, int sample_count) {
 		double complex complex_val = this_val -> complex_number;
 		
 		// Calculate magnitude
-		// We must double values below this limit
-		x -> complex_numbers[i].magnitude = ((cabs(complex_val)*2) / sample_count);
+		//x -> complex_numbers[i].magnitude = ((cabs(complex_val)*2) / sample_count);
+		x -> complex_numbers[i].magnitude = ((cabs(complex_val)) / sample_count);
 	}
 }
-
-/**
- * Performs a Discrete Fourier Transform 
- * x - a pointer to a series of complex number inputs
- **/
-/**
-void dft(complex_n_t* x, complex_n_t* X) {
-	
-	printf("Running DFT...\n");
-	int N = x -> data_size;
-	// Output index (k)
-	for (int k=0; k < N; k++) {
-		printf("DFT output (%d)...\n", k);
-
-		complex_t* out_data = &X -> data[k];
-		
-		// Initialise output (Xk)
-		double* real_out = &(*out_data).real;
-		double* im_out = &(*out_data).imaginary;
-
-		// Summation over input index (xn)
-		for (int n=0; n < N; n++){
-			complex_t in_data = x -> data[n];
-			double real_xn = in_data.real;
-			double im_xn = in_data.imaginary;
-			
-			// Multiply xn by our complex exponent
-			//xn * e^-((i^2*M_PI*k*n)/N)
-			
-			// Now for Eueler's formula
-			// e^xi = cos(x) + i*sin(x)
-			// Where i is imaginary
-			// x is the angle in radians
-			double x = 2*M_PI*k*n / N;
-			(*real_out) += (real_xn * cos(x)) + (im_xn * sin(x));
-			(*im_out) += (-real_xn * sin(x)) + (im_xn * cos(x));
-			// printf("(Output %d/%d) Real: %02f, Imaginary: %02f\n", k, n, (*real_out), (*im_out));
-		}	
-	}
-}
-**/
 
 void dft(complex_set_t* x, complex_set_t* X) {
 	printf("Running DFT...\n");

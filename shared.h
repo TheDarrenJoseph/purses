@@ -9,7 +9,7 @@
 #define DEVICE_MAX 16
 
 // 44100 Hz sample rate
-#define SAMPLE_RATE 512
+#define SAMPLE_RATE 44100
 
 static const size_t BUFFER_BYTE_COUNT = SAMPLE_RATE;
 

@@ -160,6 +160,9 @@ void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void*
     }
 }
 
+/**
+ * Warning: This currently hangs the thread on execution
+ **/
 void pa_disconnect_context(pa_context** pa_ctx) {
 	FILE* logfile = get_logfile();
 	fprintf(logfile, "Disconnecting PA Context...\n");
