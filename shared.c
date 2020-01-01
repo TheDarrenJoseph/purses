@@ -21,9 +21,19 @@ int close_logfile() {
 	}
 }
 
-int println (char* format, va_list vlist) {
-	char* output = strcat(format, "\n");
-	return vprintf(output, vlist);
+int fprintln (char* format, va_list vlist) {
+	if (vlist != NULL) {
+		char* output = strcat(format, "\n");
+		return vprintf(output, vlist);
+	} else {
+			printf(format);
+	}
+}
+
+int printlncol( char* ansi_code, char* format) {
+	printf("%s%s",ESC,ansi_code);
+	fprintln(format, NULL);
+	printf("%s%s",ESC,ANSI_DEFAULT);
 }
 
 long seek_file_size(FILE* file) {

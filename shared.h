@@ -5,6 +5,12 @@
 #include <string.h>
 #include <complex.h>
 
+// According to Linux man: console_codes, we want the ANSI ESC char
+#define ANSI_DEFAULT "[0;0m"
+#define ANSI_RED "[0;31m"
+#define ANSI_GREEN "[0;32m"
+#define ESC "\033"
+
 #define MAX_ITERATIONS 50000
 #define DEVICE_MAX 16
 
@@ -35,7 +41,8 @@ typedef struct complex_set {
 
 FILE* get_logfile();
 int close_logfile();
-int println (char* format, va_list vlist);
+int fprintln (char* format, va_list vlist);
+int printlncol(char* ansi_code, char* format);
 long seek_file_size(FILE* file);
 void write_to_file(record_stream_data_t* stream_read_data, char* filename);
 void read_from_file(record_stream_data_t* stream_read_data, char* filename);

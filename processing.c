@@ -19,7 +19,7 @@ void nyquist_filter(complex_set_t* x, int sample_rate) {
 		double complex* complex_sample = &(x -> complex_numbers[i].complex_number);
 		if (frequency < nyquist_frequency) {
 			printf("Adjusting: %.2f\n", creal((*complex_sample)));
-			(*complex_sample) *= 2;
+			//(*complex_sample) *= 2;
 		} else {
 			(*complex_sample) = CMPLX(0.0, 0.0);
 		}
@@ -59,18 +59,19 @@ void dft(complex_set_t* x, complex_set_t* X) {
 			// Multiply xn by our complex exponent
 			//xn * e^-((i^2*M_PI*k*n)/N)
 			
-			// Now for Eueler's formula
-			// e^xi = cos(x) + i*sin(x)
-			// Where i is imaginary
+			// Now for Eueler's formula (for any real number x, given as radians)
+			// e^ix = cos(x) + i*sin(x)
+			// Where i is our imaginary number
 			// x is the angle in radians
-			double rads = 2*M_PI*k*n / N;
-			real_out += (real_xn * cos(rads)) + (im_xn * sin(rads));
-			im_out += (-real_xn * sin(rads)) + (im_xn * cos(rads));
-			
-			// printf("(Output %d/%d) Real: %02f, Imaginary: %02f\n", k, n, (*real_out), (*im_out));
+			double rads = (2*M_PI/N)*k*n;
+			double real_inc = (real_xn * cos(rads)) + (im_xn * sin(rads));
+			double imag_inc = (-real_xn * sin(rads)) + (im_xn * cos(rads));
+			printf("(Output %d/%d) Input Rads: %02f Real: %02f, Imaginary: %02f\n", k, n, rads, real_inc, imag_inc);
+			real_out += real_inc;
+			im_out += imag_inc;
+
 		}	
-		
-		
+		printf("(Summation Output %d/%d) Real: %02f, Imaginary: %02f\n", k+1, N, real_out, im_out);
 		double complex output = CMPLX(real_out, im_out);
 		X -> complex_numbers[k].complex_number = output;
 	}
