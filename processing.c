@@ -40,9 +40,7 @@ void set_magnitude(complex_set_t* x, int sample_count) {
 		double complex complex_val = this_val -> complex_number;
 		
 		// Calculate magnitude
-		//x -> complex_numbers[i].magnitude = ((cabs(complex_val)*2) / sample_count);
-		//x -> complex_numbers[i].magnitude = ((cabs(complex_val)) / sample_count);
-		x -> complex_numbers[i].magnitude = sqrt(pow(creal(complex_val),2) + pow(cimag(complex_val),2)) / sample_count;
+		x -> complex_numbers[i].magnitude = ((cabs(complex_val)) / sample_count);
 	}
 }
 
