@@ -15,7 +15,7 @@
 #define DEVICE_MAX 16
 
 // 44100 Hz sample rate
-#define SAMPLE_RATE 44100
+#define SAMPLE_RATE 512
 
 static const size_t BUFFER_BYTE_COUNT = SAMPLE_RATE;
 
@@ -41,8 +41,10 @@ typedef struct complex_set {
 
 FILE* get_logfile();
 int close_logfile();
-int fprintln (char* format, va_list vlist);
-int printlncol(char* ansi_code, char* format);
+void fprint_data(FILE* file, complex_set_t* samples, int sample_rate);
+void print_data(complex_set_t* samples, int sample_rate);
+void fprintln (char* format, va_list vlist);
+void printlncol(char* ansi_code, char* format);
 long seek_file_size(FILE* file);
 void write_to_file(record_stream_data_t* stream_read_data, char* filename);
 void read_from_file(record_stream_data_t* stream_read_data, char* filename);

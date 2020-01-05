@@ -21,16 +21,48 @@ int close_logfile() {
 	}
 }
 
-int fprintln (char* format, va_list vlist) {
-	if (vlist != NULL) {
-		char* output = strcat(format, "\n");
-		return vprintf(output, vlist);
-	} else {
-			printf(format);
+void fprint_data(FILE* file, complex_set_t* samples, int sample_rate) {
+	int data_size = samples -> data_size;
+	// Frequency resolution = Sampling Freq / Sample Count
+	int freq_resolution = sample_rate / data_size;	
+	fprintf(file, "Frequency Resolution: %dHz\n", freq_resolution);
+	
+	double sum = 0.0;
+	for (int i=0; i<data_size; i++) {
+		int frequency = freq_resolution * i;
+		struct complex_wrapper wrapper = samples -> complex_numbers[i];
+		
+		complex double complex_val = wrapper.complex_number;
+		
+		double realval = creal(complex_val);
+		sum += realval;
+		double imval = cimag(complex_val);
+		double mag = wrapper.magnitude;
+		fprintf(file, "(%d - %dHz) - Real: %.2f, Imaginary: %+.2fi, Magnitude: %.2f\n", i, frequency, realval, imval, mag);
 	}
 }
 
-int printlncol( char* ansi_code, char* format) {
+void print_data(complex_set_t* samples, int sample_rate) {
+	fprint_data(stdout, samples, sample_rate);
+}
+
+void fprintln (char* format, va_list vlist) {
+	int current_len = strlen(format);
+	
+	// Add space for the newline char
+	char expanded[current_len+1];
+	// Copy and append the newline
+	strcat(expanded, format);
+	strcat(expanded, "\n");
+	
+	if (vlist != NULL) {
+		vprintf(expanded, vlist);
+	} else {
+		printf(expanded);
+	}
+}
+
+void printlncol( char* ansi_code, char* format) {
 	printf("%s%s",ESC,ansi_code);
 	fprintln(format, NULL);
 	printf("%s%s",ESC,ANSI_DEFAULT);
