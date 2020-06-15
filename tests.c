@@ -48,7 +48,8 @@ void assert_complex(double complex expected, double complex actual) {
 // Simple unit test functions to check we're on-point with our algos
 // Credits to Simon Xu for the example
 void test_dft_1hz_8hz() {
-	
+	printf("=== Testing DFT of 1Hz Sine, 8Hz sample rate, 1s ===\n");
+
 	int sample_rate = 8;
 	double complex empty = CMPLX(0.00, 0.0);
 
@@ -139,6 +140,63 @@ void test_dft_1hz_8hz() {
 // Wikipedia DFT Example
 void test_dft_wiki_example() {
 	
+	printf("=== Testing DFT of Wiki Example, 4 samples ===\n");
+	
+	int data_size = 4;
+	int sample_rate = 4;
+	double complex empty = CMPLX(0.00, 0.0);
+	
+	complex_set_t* complex_samples = (complex_set_t*) malloc(sizeof(complex_set_t));
+	complex_samples -> data_size = data_size;
+	complex_wrapper_t* data = complex_samples -> complex_numbers;
+	data = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * 8);
+	
+	double complex sample0 = CMPLX(1.0 , 0.0);
+	double complex sample1 = CMPLX(2.0 , cimag(-(1*I)));
+	double complex sample2 = CMPLX(0.0 , cimag(-(1*I)));
+	double complex sample3 = CMPLX(-1.0, cimag(2*I));
+	
+	printf("Imaginary numbers, 1: %.2f, 2: %.2f, 3: %.2f, 4: %.2f\n", cimag(sample0), cimag(sample1), cimag(sample2), cimag(2*I));
+	
+	data[0].complex_number = sample0;
+	data[1].complex_number = sample1;
+	data[2].complex_number = sample2;
+	data[3].complex_number = sample3;
+	complex_samples -> complex_numbers = data;
+	
+	printf("=== Input Data ===\n");
+	print_data(complex_samples, sample_rate);
+	
+	complex_set_t* output = (complex_set_t*) malloc(sizeof(complex_set_t));
+	output -> data_size = data_size;
+	output -> complex_numbers = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * 8);
+	for (int i=0; i<8; i++) {
+		output -> complex_numbers[i] = (complex_wrapper_t) { empty, 0.0 };
+	}
+	
+	printf("=== Result Data (Empty) ===\n");
+	print_data(output, sample_rate);
+	
+	dft(complex_samples, output);
+	// Print and assert without any post-processing
+	printf("=== Result Data ===\n");
+	print_data(output, sample_rate);
+	// Reduce the data size accordingly
+	output -> data_size = data_size;
+	
+	// Any complex number whos imaginary part is 0 can be treated as a real
+	complex_wrapper_t* output_data = output -> complex_numbers;
+	assert_complex(CMPLX(2.00, 0.00), output_data[0].complex_number);
+	assert_complex(CMPLX(-2.00, cimag(-2.00*I)), output_data[1].complex_number);
+	assert_complex(CMPLX(0.00, cimag(-2.00*I)), output_data[2].complex_number);
+	assert_complex(CMPLX(4.00, cimag(4.00*I)), output_data[3].complex_number);
+}
+
+// Wikipedia DFT Example
+void test_dft_wiki_example_ctfft() {
+	
+	printf("=== Testing CT FFT of Wiki Example, 4 samples ===\n");
+	
 	int data_size = 4;
 	int sample_rate = 4;
 	double complex empty = CMPLX(0.00, 0.0);
@@ -196,7 +254,8 @@ void sine(record_stream_data_t* record_data, int frequency, int sample_rate, int
 	// Up to 360 degrees
 	double max_radians = 360*M_PI/180;
 	
-	int max_amplitude = INT16_MAX;
+	//int max_amplitude = INT16_MAX;
+	int max_amplitude = 1;
 	
 	int increment = max_radians / sample_rate / frequency;
 	printf("Max amplitude: %d, Sample Rate: %dHz, Sine Frequency: %dHz, Increment: %dHz\n", max_amplitude, sample_rate, frequency, increment);
@@ -207,7 +266,7 @@ void sine(record_stream_data_t* record_data, int frequency, int sample_rate, int
 	}
 }
 
-void generate_sine_10khz_44100hz() {
+void generate_sine_10hz_44100hz() {
 	record_stream_data_t* sample_date = 0;
 	init_record_data(&sample_date);
 	sine(sample_date, 10, 44100, 44100);

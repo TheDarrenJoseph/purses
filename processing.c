@@ -44,6 +44,8 @@ void set_magnitude(complex_set_t* x, int sample_count) {
 	}
 }
 
+// x - input set
+// X - output set
 void dft(complex_set_t* x, complex_set_t* X) {
 	FILE* logfile = get_logfile();
 	fprintf(logfile, "Running DFT...\n");
@@ -52,11 +54,11 @@ void dft(complex_set_t* x, complex_set_t* X) {
 	for (int k=0; k < N; k++) {
 		fprintf(logfile, "DFT output (%d)...\n", k);
 		
-		// Initialise output (Xk)
+		// Initialise output (X[k])
 		double real_out = 0.0;
 		double im_out = 0.0;
 		
-		// Summation over input index (xn)
+		// Summation over input index (x[n])
 		for (int n=0; n < N; n++) {
 			struct complex_wrapper* in_data = &(x -> complex_numbers[n]);
 			double real_xn = creal(in_data -> complex_number);
@@ -104,58 +106,101 @@ void build_complex_set(record_stream_data_t* record_data, complex_set_t** set, i
 		}
 }
 
-
-// Output will be Audo Frequency (Hz/kHZ) mapped to a rough frequency scale (i.e 1..10); 
-
-// Cooley-Turkey algorithm, radix 2
-void ct_fft(record_stream_data_t* input_data) {
+/**
+ * Initialises output_set from the record_stream
+ */
+void record_stream_to_complex_set(record_stream_data_t* record_stream, complex_set_t* output_set) {
 	FILE* logfile = get_logfile();
-	unsigned int size_n = input_data -> data_size;
+	unsigned int size_n = record_stream -> data_size;
+	
+	int power_of_two = (size_n > 1 && (size_n%2) != 0);
 	
 	// Check for N power of 2
-	if ((size_n%2) != 0) {
+	if (size_n == 0 || power_of_two) {
 		fprintf(logfile, "Cannot perform radix-2 processing if input data size if not a power of 2!, received data size: %d\n", size_n);
 		return;
 	}
 	
+	// Allocate input set
 	complex_set_t* input_set = 0;
-	build_complex_set(input_data, &input_set, size_n);
+	build_complex_set(record_stream, &output_set, size_n);
+}
+
+// Output will be Audo Frequency (Hz/kHZ) mapped to a rough frequency scale (i.e 1..10); 
+// Cooley-Turkey algorithm, radix 2
+// This performs a radix-2 via a Decimation In Time (DIT) approach
+void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
+	FILE* logfile = get_logfile();
+	unsigned int size_n = input_data -> data_size;
+
+	// Trivial size-1 DFT 
+	if (size_n == 1) {
+		output_data[0] = input_data[0];
+		return;
+	}
+	
+	unsigned int half_size = size_n/2;
 	
 	fprintf(logfile, "=== Input Data ===\n");
-	print_data(input_set, SAMPLE_RATE);
+	print_data(input_data, SAMPLE_RATE);
 	
 	fprintf(logfile, "FFT Processing %d bytes.\n", size_n);
 	
-	
+	// 1. Separate input into an N/2 even and odd set
 	complex_set_t* even_set = 0;
-	malloc_complex_set(&even_set, size_n/2);
-	
 	complex_set_t* odd_set = 0;
-	malloc_complex_set(&odd_set, size_n/2);
-	
-	
+	malloc_complex_set(&even_set, half_size);
+	malloc_complex_set(&odd_set, half_size);
+	complex_wrapper_t* data_n = input_data -> complex_numbers;
 	complex_wrapper_t* data_even = even_set -> complex_numbers;
 	complex_wrapper_t* data_odd = odd_set -> complex_numbers;
-	complex_wrapper_t* data_n = input_set -> complex_numbers;
-	
-	// TODO Implement, for now just show our data
-	// 1. DFT even/odd indices
-	fprintf(logfile, "FFT Processing even indices.\n");
 	for (int i=0; i < size_n; i++) {
 		double complex complex_sample = data_n[i].complex_number;
 		double realval = creal(complex_sample);
-		
-		// signed int is at least 16 bits, so we can cast our 16-bit PCM sample into this
-		//signed int data_i = (signed int) data_n[i];
 		if ((i%2) == 0) {
 			fprintf(logfile, "(Even) Processing sample (%d): Real value: %.02f\n", i, realval);
 			data_even[i] = data_n[i];
 		} else {
 			fprintf(logfile, "(Odd) Processing sample (%d): Real value: %.02f\n", i, realval);
-			data_even[i] = data_n[i];
+			data_odd[i] = data_n[i];
 		}
 	}
+
 	
-	//2. 
+	// 2. Perform DFT on each (2 DFTs of size half_size)
+	complex_set_t* even_out_set = 0;
+	complex_set_t* odd_out_set = 0;
+	malloc_complex_set(&even_out_set, half_size);
+	malloc_complex_set(&odd_out_set, half_size);
+	dft (even_set, even_out_set);
+	dft (odd_set, odd_out_set);
+	
+	
+	complex_set_t* size2_set = 0;
+	malloc_complex_set(&size2_set, 2);
+
+	complex_set_t* size2_output_set = 0;
+	malloc_complex_set(&size2_output_set, 2);
+	
+	//3. Combine results using butterfly approach 
+	// Perform half_size DFTs of size 2
+	for (int i=0; i < half_size; i++) {
+		// Make pointers for our size-2 inputs
+		complex_wrapper_t* wrapper_a = &size2_set -> complex_numbers[0];
+		complex_wrapper_t* wrapper_b = &size2_set -> complex_numbers[1];
+		
+		// Pointers for each input
+		complex_wrapper_t* even_input = &even_out_set -> complex_numbers[i];
+		complex_wrapper_t* odd_input = &odd_out_set -> complex_numbers[i];
+		
+		wrapper_a -> complex_number = even_input -> complex_number;
+		wrapper_b -> complex_number = odd_input -> complex_number;
+		
+		dft (size2_set, size2_output_set);
+		
+		// Map our size-2 outputs back out
+		output_data -> complex_numbers[i] = size2_output_set -> complex_numbers[0];
+		output_data -> complex_numbers[i+half_size-1] = size2_output_set -> complex_numbers[1];
+	}
 	
 }
