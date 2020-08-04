@@ -89,11 +89,11 @@ int main(void) {
 	//read_from_file(file_read_data, "record.bin");
 
 	complex_set_t* output_set = 0;
-	malloc_complex_set(&output_set, streamed_data_size);
+	malloc_complex_set(&output_set, streamed_data_size, sample_rate);
 	complex_set_t* input_set = 0;
 	record_stream_to_complex_set(stream_read_data, input_set);
 	
-	ct_fft(input_set, output_set);
+	//ct_fft(input_set, output_set);
 	
 	// And free the struct when we're done
 	free(stream_read_data);

@@ -85,16 +85,16 @@ void dft(complex_set_t* x, complex_set_t* X) {
 	}
 }
 
-void malloc_complex_set(complex_set_t** set, int sample_count) {
+void malloc_complex_set(complex_set_t** set, int sample_count, int sample_rate) {
 		// Initialise the complex samples
 		(*set)  = (complex_set_t*) malloc(sizeof(complex_set_t));
 		(*set)  -> data_size = sample_count;
 		(*set)  -> complex_numbers = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * sample_count);
 }
 
-void build_complex_set(record_stream_data_t* record_data, complex_set_t** set, int sample_count) {
+void build_complex_set(record_stream_data_t* record_data, complex_set_t** set, int sample_count, int sample_rate) {
 		FILE* logfile = get_logfile();
-		malloc_complex_set(set, sample_count);
+		malloc_complex_set(set, sample_count, sample_rate);
 
 		complex_wrapper_t* data = (*set) -> complex_numbers;
 		// Convert samples to Complex numbers
@@ -123,7 +123,7 @@ void record_stream_to_complex_set(record_stream_data_t* record_stream, complex_s
 	
 	// Allocate input set
 	complex_set_t* input_set = 0;
-	build_complex_set(record_stream, &output_set, size_n);
+	build_complex_set(record_stream, &output_set, size_n, SAMPLE_RATE);
 }
 
 // Output will be Audo Frequency (Hz/kHZ) mapped to a rough frequency scale (i.e 1..10); 
@@ -142,65 +142,56 @@ void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
 	unsigned int half_size = size_n/2;
 	
 	fprintf(logfile, "=== Input Data ===\n");
-	print_data(input_data, SAMPLE_RATE);
+	print_data(input_data);
 	
 	fprintf(logfile, "FFT Processing %d bytes.\n", size_n);
+	
+	int sample_rate = input_data -> sample_rate;
 	
 	// 1. Separate input into an N/2 even and odd set
 	complex_set_t* even_set = 0;
 	complex_set_t* odd_set = 0;
-	malloc_complex_set(&even_set, half_size);
-	malloc_complex_set(&odd_set, half_size);
+	malloc_complex_set(&even_set, half_size, sample_rate);
+	malloc_complex_set(&odd_set, half_size, sample_rate);
 	complex_wrapper_t* data_n = input_data -> complex_numbers;
-	complex_wrapper_t* data_even = even_set -> complex_numbers;
-	complex_wrapper_t* data_odd = odd_set -> complex_numbers;
-	for (int i=0; i < size_n; i++) {
-		double complex complex_sample = data_n[i].complex_number;
-		double realval = creal(complex_sample);
-		if ((i%2) == 0) {
-			fprintf(logfile, "(Even) Processing sample (%d): Real value: %.02f\n", i, realval);
-			data_even[i] = data_n[i];
-		} else {
-			fprintf(logfile, "(Odd) Processing sample (%d): Real value: %.02f\n", i, realval);
-			data_odd[i] = data_n[i];
-		}
+	for (int i=0; i < half_size; i++) {
+		complex_wrapper_t* data_even = even_set -> complex_numbers;
+		complex_wrapper_t* data_odd = odd_set -> complex_numbers;
+		int even_i = 2*i;
+		int odd_i = even_i+1;
+		fprintf(logfile, "Even: %d, Odd: %d\n", even_i, odd_i);
+		data_even[i] = data_n[even_i];
+		data_even[i] = data_n[odd_i];
 	}
-
 	
 	// 2. Perform DFT on each (2 DFTs of size half_size)
 	complex_set_t* even_out_set = 0;
 	complex_set_t* odd_out_set = 0;
-	malloc_complex_set(&even_out_set, half_size);
-	malloc_complex_set(&odd_out_set, half_size);
+	malloc_complex_set(&even_out_set, half_size, sample_rate);
+	malloc_complex_set(&odd_out_set, half_size, sample_rate);
 	dft (even_set, even_out_set);
 	dft (odd_set, odd_out_set);
+		
+	fprintf(logfile, "=== Even Out Data ===\n");
+	fprint_data(logfile, even_out_set);
 	
+	fprintf(logfile, "=== Odd Out Data ===\n");
+	fprint_data(logfile, odd_out_set);
 	
-	complex_set_t* size2_set = 0;
-	malloc_complex_set(&size2_set, 2);
-
-	complex_set_t* size2_output_set = 0;
-	malloc_complex_set(&size2_output_set, 2);
-	
-	//3. Combine results using butterfly approach 
-	// Perform half_size DFTs of size 2
+	// Re-assign the outputs to the output set
+	data_n = output_data -> complex_numbers;
 	for (int i=0; i < half_size; i++) {
-		// Make pointers for our size-2 inputs
-		complex_wrapper_t* wrapper_a = &size2_set -> complex_numbers[0];
-		complex_wrapper_t* wrapper_b = &size2_set -> complex_numbers[1];
-		
-		// Pointers for each input
-		complex_wrapper_t* even_input = &even_out_set -> complex_numbers[i];
-		complex_wrapper_t* odd_input = &odd_out_set -> complex_numbers[i];
-		
-		wrapper_a -> complex_number = even_input -> complex_number;
-		wrapper_b -> complex_number = odd_input -> complex_number;
-		
-		dft (size2_set, size2_output_set);
-		
-		// Map our size-2 outputs back out
-		output_data -> complex_numbers[i] = size2_output_set -> complex_numbers[0];
-		output_data -> complex_numbers[i+half_size-1] = size2_output_set -> complex_numbers[1];
+		int even_i = 2*i;
+		fprintf(logfile, "Even: %d, Odd: %d\n", even_i, even_i+1);
+		data_n[even_i] = even_set -> complex_numbers[i];
+		data_n[even_i+1] = odd_set -> complex_numbers[i];
 	}
 	
+	fprintf(logfile, "=== Output Data ===\n");
+	fprint_data(logfile, output_data);
+	
+	// 3. Twiddle and combine
+	//for (int k=0; k<size_n/2; k++) {
+	//		int t = output_data[k];
+	//}
 }

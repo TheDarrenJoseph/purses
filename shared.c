@@ -21,7 +21,8 @@ int close_logfile() {
 	}
 }
 
-void fprint_data(FILE* file, complex_set_t* samples, int sample_rate) {
+void fprint_data(FILE* file, complex_set_t* samples) {
+	int sample_rate = samples -> sample_rate;
 	int data_size = samples -> data_size;
 	// Frequency resolution = Sampling Freq / Sample Count
 	int freq_resolution = sample_rate / data_size;	
@@ -42,8 +43,8 @@ void fprint_data(FILE* file, complex_set_t* samples, int sample_rate) {
 	}
 }
 
-void print_data(complex_set_t* samples, int sample_rate) {
-	fprint_data(stdout, samples, sample_rate);
+void print_data(complex_set_t* samples) {
+	fprint_data(stdout, samples);
 }
 
 void fprintln (char* format, va_list vlist) {

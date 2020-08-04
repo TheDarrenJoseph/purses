@@ -35,14 +35,17 @@ typedef struct complex_wrapper {
 // For use with native complex.h 
 typedef struct complex_set {
   complex_wrapper_t* complex_numbers;
+  // Number of samples in complex_numbers
   int data_size;
+  // sample rate in Hz
+  int sample_rate;
 } complex_set_t;
 
 
 FILE* get_logfile();
 int close_logfile();
-void fprint_data(FILE* file, complex_set_t* samples, int sample_rate);
-void print_data(complex_set_t* samples, int sample_rate);
+void fprint_data(FILE* file, complex_set_t* samples);
+void print_data(complex_set_t* samples);
 void fprintln (char* format, va_list vlist);
 void printlncol(char* ansi_code, char* format);
 long seek_file_size(FILE* file);

@@ -59,6 +59,7 @@ void test_dft_1hz_8hz() {
 
 	complex_set_t* complex_samples = (complex_set_t*) malloc(sizeof(complex_set_t));
 	complex_samples -> data_size = 8;
+	complex_samples -> sample_rate = 1;
 	complex_wrapper_t* data = complex_samples -> complex_numbers;
 	data = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * 8);
 	
@@ -83,7 +84,7 @@ void test_dft_1hz_8hz() {
 	complex_samples -> complex_numbers = data;
 	
 	printf("=== Input Data ===\n");
-	print_data(complex_samples, sample_rate);
+	print_data(complex_samples);
 	
 	complex_set_t* output = (complex_set_t*) malloc(sizeof(complex_set_t));
 	output -> data_size = 8;
@@ -93,12 +94,12 @@ void test_dft_1hz_8hz() {
 	}
 	
 	printf("=== Result Data (Empty) ===\n");
-	print_data(output, sample_rate);
+	print_data(output);
 	
 	dft(complex_samples, output);
 
 	printf("=== Result Data ===\n");
-	print_data(output, sample_rate);
+	print_data(output);
 	
 	complex_wrapper_t* output_data = output -> complex_numbers;
 	assert_complex(CMPLX(0.00, 0.00), output_data[0].complex_number);
@@ -148,6 +149,7 @@ void test_dft_wiki_example() {
 	
 	complex_set_t* complex_samples = (complex_set_t*) malloc(sizeof(complex_set_t));
 	complex_samples -> data_size = data_size;
+	complex_samples -> sample_rate = sample_rate;
 	complex_wrapper_t* data = complex_samples -> complex_numbers;
 	data = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * 8);
 	
@@ -165,7 +167,7 @@ void test_dft_wiki_example() {
 	complex_samples -> complex_numbers = data;
 	
 	printf("=== Input Data ===\n");
-	print_data(complex_samples, sample_rate);
+	print_data(complex_samples);
 	
 	complex_set_t* output = (complex_set_t*) malloc(sizeof(complex_set_t));
 	output -> data_size = data_size;
@@ -175,12 +177,13 @@ void test_dft_wiki_example() {
 	}
 	
 	printf("=== Result Data (Empty) ===\n");
-	print_data(output, sample_rate);
+	print_data(output);
 	
 	dft(complex_samples, output);
+	
 	// Print and assert without any post-processing
 	printf("=== Result Data ===\n");
-	print_data(output, sample_rate);
+	print_data(output);
 	// Reduce the data size accordingly
 	output -> data_size = data_size;
 	
@@ -203,6 +206,7 @@ void test_dft_wiki_example_ctfft() {
 	
 	complex_set_t* complex_samples = (complex_set_t*) malloc(sizeof(complex_set_t));
 	complex_samples -> data_size = data_size;
+	complex_samples -> sample_rate = sample_rate;
 	complex_wrapper_t* data = complex_samples -> complex_numbers;
 	data = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * 8);
 	
@@ -220,7 +224,7 @@ void test_dft_wiki_example_ctfft() {
 	complex_samples -> complex_numbers = data;
 	
 	printf("=== Input Data ===\n");
-	print_data(complex_samples, sample_rate);
+	print_data(complex_samples);
 	
 	complex_set_t* output = (complex_set_t*) malloc(sizeof(complex_set_t));
 	output -> data_size = data_size;
@@ -230,12 +234,13 @@ void test_dft_wiki_example_ctfft() {
 	}
 	
 	printf("=== Result Data (Empty) ===\n");
-	print_data(output, sample_rate);
+	print_data(output);
 	
-	dft(complex_samples, output);
+	ct_fft(complex_samples, output);
+	
 	// Print and assert without any post-processing
 	printf("=== Result Data ===\n");
-	print_data(output, sample_rate);
+	print_data(output);
 	// Reduce the data size accordingly
 	output -> data_size = data_size;
 	
@@ -290,6 +295,7 @@ void test_dft_10khz_44100hz() {
 		// Initialise the complex samples
 		complex_set_t* complex_samples = (complex_set_t*) malloc(sizeof(complex_set_t));
 		complex_samples -> data_size = sample_count;
+		complex_samples -> sample_rate = sample_rate;
 		complex_samples -> complex_numbers = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * sample_count);
 		complex_wrapper_t* data = complex_samples -> complex_numbers;
 		
@@ -301,7 +307,7 @@ void test_dft_10khz_44100hz() {
 		}
 		
 		printf("=== Input Data ===\n");
-		print_data(complex_samples, sample_rate);
+		print_data(complex_samples);
 
 		
 		// 3. Run through DFT
@@ -324,13 +330,13 @@ void test_dft_10khz_44100hz() {
 		printf("Frequency Resolution: %dHz\n", freq_resolution);
 		
 		printf("=== Output Data ===\n");
-		print_data(output, sample_rate);
+		print_data(output);
 		
 }
 
 
 int main(void) {
-	test_dft_1hz_8hz();
 	test_dft_wiki_example();
+	//test_dft_wiki_example_ctfft();
 	printlncol(ANSI_GREEN, "=== Tests Complete ===\n");
 }
