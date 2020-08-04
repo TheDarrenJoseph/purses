@@ -69,6 +69,7 @@ void dft(complex_set_t* x, complex_set_t* X) {
 			
 			// Now for Eueler's formula (for any real number x, given as radians)
 			// e^ix = cos(x) + i*sin(x)
+			// Where e is the base of the natual logarithm
 			// Where i is our imaginary number
 			// x is the angle in radians
 			double rads = (2*M_PI/N)*k*n;
@@ -165,6 +166,7 @@ void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
 	}
 	
 	// 2. Perform DFT on each (2 DFTs of size half_size)
+	fprintf(logfile, "=== Performing Odd/Even DFTs ===\n");
 	complex_set_t* even_out_set = 0;
 	complex_set_t* odd_out_set = 0;
 	malloc_complex_set(&even_out_set, half_size, sample_rate);
@@ -178,20 +180,41 @@ void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
 	fprintf(logfile, "=== Odd Out Data ===\n");
 	fprint_data(logfile, odd_out_set);
 	
-	// Re-assign the outputs to the output set
+	// Recombine the even and odd outputs to the output set
 	data_n = output_data -> complex_numbers;
 	for (int i=0; i < half_size; i++) {
 		int even_i = 2*i;
-		fprintf(logfile, "Even: %d, Odd: %d\n", even_i, even_i+1);
+		int odd_i = even_i+1;
+	    fprintf(logfile, "Even: %d, Odd: %d\n", even_i, odd_i);
 		data_n[even_i] = even_set -> complex_numbers[i];
-		data_n[even_i+1] = odd_set -> complex_numbers[i];
+		data_n[odd_i] =  odd_set -> complex_numbers[i];
+	}
+	
+	// Twiddle the outputs
+	for (int k=0; k < half_size; k++) {
+		int even_idx = 2*k;
+
+		// Butterfly size-2 DFT Operations
+		// Xk = t + exp(−2πi k/N) Xk+N/2
+        // Xk+N/2 = t − exp(−2πi k/N) Xk+N/2
+	
+		// Calculate the Twiddle Factor 
+		// exp(−2πi k/N)
+		// Where i is our imaginary number
+		
+		complex data_k = data_n[k].complex_number;
+		double complex in_k = creal(data_k);
+		double im_k =  cimag(data_k);
+		double twiddle = exp((-2*M_PI*im_k)*(k/size_n));
+		fprintf(logfile, "Twiddle: %d\n", twiddle);
+		
+		// Perform the butterfly operations
+		int even_i = 2*k;
+		int odd_i = even_i+1;
+		data_n[even_i].complex_number = data_k + (twiddle * data_n[k+half_size].complex_number);
+		data_n[odd_i].complex_number = data_k - (twiddle * data_n[k+half_size].complex_number);
 	}
 	
 	fprintf(logfile, "=== Output Data ===\n");
 	fprint_data(logfile, output_data);
-	
-	// 3. Twiddle and combine
-	//for (int k=0; k<size_n/2; k++) {
-	//		int t = output_data[k];
-	//}
 }

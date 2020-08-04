@@ -115,7 +115,7 @@ void test_dft_1hz_8hz() {
 	set_magnitude(output, 4);
 	nyquist_filter(output, 8);
 	
-	print_data(output, sample_rate);
+	print_data(output);
 
 	assert_complex(CMPLX(0.00, 0.00), output_data[0].complex_number);
 	assert_double(0.0, output_data[0].magnitude);
@@ -195,10 +195,10 @@ void test_dft_wiki_example() {
 	assert_complex(CMPLX(4.00, cimag(4.00*I)), output_data[3].complex_number);
 }
 
-// Wikipedia DFT Example
+// Wikipedia DFT Example for a Cooley-Tukey Radix-2 FFT 
 void test_dft_wiki_example_ctfft() {
 	
-	printf("=== Testing CT FFT of Wiki Example, 4 samples ===\n");
+	printf("=== Testing Cooley-Tukey FFT of Wiki DFT Example, 4 samples ===\n");
 	
 	int data_size = 4;
 	int sample_rate = 4;
@@ -337,6 +337,6 @@ void test_dft_10khz_44100hz() {
 
 int main(void) {
 	test_dft_wiki_example();
-	//test_dft_wiki_example_ctfft();
+	test_dft_wiki_example_ctfft();
 	printlncol(ANSI_GREEN, "=== Tests Complete ===\n");
 }
