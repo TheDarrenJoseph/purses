@@ -58,24 +58,25 @@ void dft(complex_set_t* x, complex_set_t* X) {
 		double real_out = 0.0;
 		double im_out = 0.0;
 		
-		// Summation over input index (x[n])
+		// Summation over input index (x[n]), Multiply x[n] by our complex exponent
+		// x[n] * e^-((i^2*M_PI*k*n)/N)
+		// Now for Eueler's formula (for any real number x, given as radians)
+		// e^ix = cos(x) + i*sin(x)
+		// Where e is the base of the natual logarithm
+		// Where i is our imaginary number
+		// x is the angle in radians (redefined as rads below)
+		// Therefore X[k] =	for (int n=0; n < N; n++) { x[n] * (cos(rads) - (i*sin(rads))) }
 		for (int n=0; n < N; n++) {
 			struct complex_wrapper* in_data = &(x -> complex_numbers[n]);
 			double real_xn = creal(in_data -> complex_number);
 			double im_xn =  cimag(in_data -> complex_number);
 			
-			// Multiply xn by our complex exponent
-			//xn * e^-((i^2*M_PI*k*n)/N)
-			
-			// Now for Eueler's formula (for any real number x, given as radians)
-			// e^ix = cos(x) + i*sin(x)
-			// Where e is the base of the natual logarithm
-			// Where i is our imaginary number
-			// x is the angle in radians
 			double rads = (2*M_PI/N)*k*n;
 			double real_inc = (real_xn * cos(rads)) + (im_xn * sin(rads));
 			double imag_inc = (-real_xn * sin(rads)) + (im_xn * cos(rads));
 			fprintf(logfile, "(Output %d/%d) Input Rads: %02f Real: %02f, Imaginary: %02f\n", k, n, rads, real_inc, imag_inc);
+			
+			// Increment X[k] value
 			real_out += real_inc;
 			im_out += imag_inc;
 
@@ -86,14 +87,15 @@ void dft(complex_set_t* x, complex_set_t* X) {
 	}
 }
 
-void malloc_complex_set(complex_set_t** set, int sample_count, int sample_rate) {
+complex_set_t* malloc_complex_set(complex_set_t** set, int sample_count, int sample_rate) {
 		// Initialise the complex samples
 		(*set)  = (complex_set_t*) malloc(sizeof(complex_set_t));
 		(*set)  -> data_size = sample_count;
 		(*set)  -> complex_numbers = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * sample_count);
+		return (*set);
 }
 
-void build_complex_set(record_stream_data_t* record_data, complex_set_t** set, int sample_count, int sample_rate) {
+complex_set_t* build_complex_set(record_stream_data_t* record_data, complex_set_t** set, int sample_count, int sample_rate) {
 		FILE* logfile = get_logfile();
 		malloc_complex_set(set, sample_count, sample_rate);
 
@@ -105,6 +107,7 @@ void build_complex_set(record_stream_data_t* record_data, complex_set_t** set, i
 			data[i].complex_number = CMPLX((double) sample, 0.00);
 			data[i].magnitude = 0.00;
 		}
+		return (*set);
 }
 
 /**
@@ -127,6 +130,54 @@ void record_stream_to_complex_set(record_stream_data_t* record_stream, complex_s
 	build_complex_set(record_stream, &output_set, size_n, SAMPLE_RATE);
 }
 
+// Splits data into an N/2 even and odd set
+// Performs a DFT on each set
+// Recombines the outputs into output_data
+void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data) {
+	FILE* logfile = get_logfile();
+	int sample_rate = input_data -> sample_rate;
+	unsigned int half_size = input_data -> data_size/2;
+
+	// 1. Separate input into an N/2 even and odd set
+	complex_set_t* even_set = 0;
+	complex_set_t* odd_set = 0;
+	malloc_complex_set(&even_set, half_size, sample_rate);
+	malloc_complex_set(&odd_set, half_size, sample_rate);
+	complex_wrapper_t* input_nums = input_data -> complex_numbers;
+	for (int i=0; i < half_size; i++) {
+		int even_i = i*2;
+		int odd_i = i*2+1;		
+		fprintf(logfile, "Splitting on Odd: %d, Even: %d\n", odd_i, even_i);
+		even_set -> complex_numbers[i] = input_nums[even_i];
+		odd_set -> complex_numbers[i] = input_nums[odd_i];
+	}
+	
+	// 2. Perform DFT on each (2 DFTs of size half_size)
+	//fprintf(logfile, "=== Performing Odd/Even DFTs ===\n");
+	complex_set_t* even_out_set = 0;
+	complex_set_t* odd_out_set = 0;
+	malloc_complex_set(&even_out_set, half_size, sample_rate);
+	malloc_complex_set(&odd_out_set, half_size, sample_rate);
+	dft (even_set, even_out_set);
+	dft (odd_set, odd_out_set);
+
+	fprintf(logfile, "=== Even Out Data ===\n");
+	fprint_data(logfile, even_out_set);
+	
+	fprintf(logfile, "=== Odd Out Data ===\n");
+	fprint_data(logfile, odd_out_set);
+	
+	// Recombine the split sets
+	complex_wrapper_t* output_nums = output_data -> complex_numbers;
+	for (int i=0; i < half_size; i++) {
+		int even_i = i*2;
+		int odd_i = i*2+1;		
+		
+		output_nums[even_i] = even_set -> complex_numbers[i];
+		output_nums[odd_i] = odd_set -> complex_numbers[i];
+	}
+}
+
 // Output will be Audo Frequency (Hz/kHZ) mapped to a rough frequency scale (i.e 1..10); 
 // Cooley-Turkey algorithm, radix 2
 // This performs a radix-2 via a Decimation In Time (DIT) approach
@@ -145,74 +196,61 @@ void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
 	fprintf(logfile, "=== Input Data ===\n");
 	print_data(input_data);
 	
+	half_size_dfts(input_data, output_data);
+	
 	fprintf(logfile, "FFT Processing %d bytes.\n", size_n);
 	
-	int sample_rate = input_data -> sample_rate;
-	
-	// 1. Separate input into an N/2 even and odd set
-	complex_set_t* even_set = 0;
-	complex_set_t* odd_set = 0;
-	malloc_complex_set(&even_set, half_size, sample_rate);
-	malloc_complex_set(&odd_set, half_size, sample_rate);
-	complex_wrapper_t* data_n = input_data -> complex_numbers;
-	for (int i=0; i < half_size; i++) {
-		complex_wrapper_t* data_even = even_set -> complex_numbers;
-		complex_wrapper_t* data_odd = odd_set -> complex_numbers;
-		int even_i = 2*i;
-		int odd_i = even_i+1;
-		fprintf(logfile, "Even: %d, Odd: %d\n", even_i, odd_i);
-		data_even[i] = data_n[even_i];
-		data_even[i] = data_n[odd_i];
-	}
-	
-	// 2. Perform DFT on each (2 DFTs of size half_size)
-	fprintf(logfile, "=== Performing Odd/Even DFTs ===\n");
-	complex_set_t* even_out_set = 0;
-	complex_set_t* odd_out_set = 0;
-	malloc_complex_set(&even_out_set, half_size, sample_rate);
-	malloc_complex_set(&odd_out_set, half_size, sample_rate);
-	dft (even_set, even_out_set);
-	dft (odd_set, odd_out_set);
-		
-	fprintf(logfile, "=== Even Out Data ===\n");
-	fprint_data(logfile, even_out_set);
-	
-	fprintf(logfile, "=== Odd Out Data ===\n");
-	fprint_data(logfile, odd_out_set);
-	
-	// Recombine the even and odd outputs to the output set
-	data_n = output_data -> complex_numbers;
-	for (int i=0; i < half_size; i++) {
-		int even_i = 2*i;
-		int odd_i = even_i+1;
-	    fprintf(logfile, "Even: %d, Odd: %d\n", even_i, odd_i);
-		data_n[even_i] = even_set -> complex_numbers[i];
-		data_n[odd_i] =  odd_set -> complex_numbers[i];
-	}
-	
-	// Twiddle the outputs
+	// Twiddle the outputs and recombine
+	complex_wrapper_t* output_nums = output_data -> complex_numbers;
 	for (int k=0; k < half_size; k++) {
-		int even_idx = 2*k;
-
 		// Butterfly size-2 DFT Operations
-		// Xk = t + exp(−2πi k/N) Xk+N/2
-        // Xk+N/2 = t − exp(−2πi k/N) Xk+N/2
-	
-		// Calculate the Twiddle Factor 
-		// exp(−2πi k/N)
-		// Where i is our imaginary number
+		// Where E is the Even set, O is the Odd set
+        	
+		// Calculate the Twiddle Factor (e(−2πi k/N))
+		// Now for Eueler's formula (for any real number x, given as radians)
+		// e^ix = cos(x) + i*sin(x)
+		// At this step we are essentially performing our N2 (size-2 DFTs)
+		// These are our summations for each of the 2 DFT outputs X[k] and X[k+N/2]
+		int even_k = k*2;
+		int odd_k = k*2+1;	
 		
-		complex data_k = data_n[k].complex_number;
-		double complex in_k = creal(data_k);
-		double im_k =  cimag(data_k);
-		double twiddle = exp((-2*M_PI*im_k)*(k/size_n));
-		fprintf(logfile, "Twiddle: %d\n", twiddle);
+		double xk_real_out = 0.0;
+		double xk_im_out = 0.0;
+		double xk_plushalf_real_out = 0.0;
+		double xk_plushalf_im_out = 0.0;
+		for (int n=0; n < 2; n++) {
+			double rads = -2*M_PI*k*n/size_n;
+			
+			double real_twiddle = cos(rads);
+			double imag_twiddle = sin(rads);
+			double complex twiddle = CMPLX(real_twiddle, imag_twiddle);
+			fprintf(logfile, "(Twiddle %d/%d) Input Rads: %02f Real: %02f, Imaginary: %02f\n", k, n, rads, creal(twiddle), cimag(twiddle));
+			
+			double complex even = output_nums[even_k].complex_number;
+			double complex odd = output_nums[odd_k].complex_number;
 		
-		// Perform the butterfly operations
-		int even_i = 2*k;
-		int odd_i = even_i+1;
-		data_n[even_i].complex_number = data_k + (twiddle * data_n[k+half_size].complex_number);
-		data_n[odd_i].complex_number = data_k - (twiddle * data_n[k+half_size].complex_number);
+			fprintf(logfile, "k = %d. Recombining Even X[%d] = %f and odd X[%d] = %f.\n", k, even_k, odd_k, creal(even), creal(odd));
+
+			double real_t = (real_twiddle * creal(odd));
+			double im_t = (imag_twiddle * creal(odd));
+
+			// Output -  Xk = E[k] + e(−2πi k/N) O[k]
+		    xk_real_out += creal(even) + real_t;
+		    xk_im_out   += cimag(even) + im_t;
+		
+			// Output - Xk+N/2 = E[k] − e(−2πi k/N) O[k]
+			xk_plushalf_real_out += creal(even) - real_t;
+		    xk_plushalf_im_out   += cimag(even) - im_t;
+		}
+		
+		
+		double complex xk = CMPLX(xk_real_out, xk_im_out);
+		double complex xk_plushalf = CMPLX(xk_plushalf_real_out, xk_plushalf_im_out);
+		
+		output_nums[k].complex_number = xk;
+		output_nums[k+half_size].complex_number = xk_plushalf;
+		fprintf(logfile, "Output X[%d] Real: %02f, Imaginary: %02f\n", k, creal(xk), cimag(xk));
+		fprintf(logfile, "Output X[%d] Real: %02f, Imaginary: %02f\n", k+half_size, creal(xk_plushalf), cimag(xk_plushalf));
 	}
 	
 	fprintf(logfile, "=== Output Data ===\n");
