@@ -184,64 +184,6 @@ void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data) {
 	}
 }
 
-void wiki_dit2_fft(complex_set_t* input, complex_set_t* output, int size, int start_index, int stride) {
-	FILE* logfile = get_logfile();
-	fprintf(logfile, "FFT DFT, Size: %d Starting at: %d, Stride: %d\n", size, start_index, stride);		
-
-	int sample_rate = input -> sample_rate;
-	unsigned int size_n = size;
-	unsigned int half_size = size_n/2;
-
-	// Trivial size-1 DFT 
-	if (size_n == 1) {
-		fprintf(logfile, "Size-1 DFT, returning: %f\n", input -> complex_numbers[start_index].complex_number);
-		output-> complex_numbers[0].complex_number = input -> complex_numbers[start_index].complex_number;
-		return;
-	}
-	
-	fprintf(logfile, "Splitting set of size %d into 2 of size %d\n", size_n, half_size);
-
-	// 1. Separate input into an N/2 even and odd set (using stride)
-	complex_set_t* first_half = 0;
-	complex_set_t* second_half = 0;
-	malloc_complex_set(&first_half, half_size, sample_rate);
-	malloc_complex_set(&second_half, half_size, sample_rate);
-	
-	// Map back the split results
-	for (int i=0; i<half_size; i++) {
-		output -> complex_numbers[start_index+i] = first_half -> complex_numbers[i];
-		output -> complex_numbers[start_index+i+half_size] = second_half -> complex_numbers[i];
-	}
-	
-	// Even indexes (0,2,4,...)
-	wiki_dit2_fft(input, first_half, half_size, start_index+0, 2);
-	// Odd indexes (1,3,5...)
-	wiki_dit2_fft(input, second_half, half_size, start_index+1, 2);
-	
-	for (int k=start_index; k < half_size; k+=stride) {
-			fprintf(logfile, "Processing: k=%d, stride=%d\n", k, stride);		
-			double rads = -2*M_PI*k/size_n;
-			
-			double real_twiddle = cos(rads);
-			double imag_twiddle = sin(rads);
-			double complex twiddle = CMPLX(real_twiddle, imag_twiddle);
-			fprintf(logfile, "(Twiddle %d) Input Rads: %02f Real: %02f, Imaginary: %02f\n", k, rads, creal(twiddle), cimag(twiddle));
-			
-			double complex t = output -> complex_numbers[k].complex_number;
-			double complex halfway_offset =  output -> complex_numbers[k+half_size].complex_number;
-			output -> complex_numbers[k].complex_number  += t + twiddle * halfway_offset;
-			output -> complex_numbers[k+half_size].complex_number += t - twiddle * halfway_offset;
-			
-			double complex output_k = output -> complex_numbers[k].complex_number;
-			double complex output_halfway = output -> complex_numbers[k+half_size].complex_number;
-			fprintf(logfile, "X[%d] = Real: %02f Real: %02f, Imaginary: %02f\n", k, creal(output_k), cimag(output_k));
-			fprintf(logfile, "X[%d] = Real: %02f Real: %02f, Imaginary: %02f\n", k+half_size, creal(output_halfway), cimag(output_halfway));
-	}
-
-	//fprintf(logfile, "=== Output Data ===\n");
-	//fprint_data(logfile, output);
-}
-
 // Output will be Audo Frequency (Hz/kHZ) mapped to a rough frequency scale (i.e 1..10); 
 // Cooley-Turkey algorithm, radix 2
 // This performs a radix-2 via a Decimation In Time (DIT) approach
@@ -251,7 +193,7 @@ void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
 
 	// Trivial size-1 DFT 
 	if (size_n == 1) {
-		output_data[0] = input_data[0];
+		output_data -> complex_numbers[0].complex_number = input_data -> complex_numbers[0].complex_number;
 		return;
 	}
 	
