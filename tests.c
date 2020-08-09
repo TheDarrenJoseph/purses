@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
 #include <pulse/pulseaudio.h>
 #include <ncurses.h>
 
@@ -39,9 +40,6 @@ void assert_complex(double complex expected, double complex actual) {
 		printf("diff: %.2f, Epsilon: %.4f\n", diff, EPS);
 		
 		exit(1);
-	} else {
-			printf("Asserting:\nExpected Real: %.2f Imag: %.2f\nActual Real: %.2f, Imag: %.2f\n", 
-		expected_real, expected_imag, actual_real, actual_imag);
 	}
 }
 
@@ -179,10 +177,15 @@ void test_dft_wiki_example() {
 	printf("=== Result Data (Empty) ===\n");
 	print_data(output);
 	
+	struct timeval before, after, elapsed;
+	gettimeofday(&before, NULL);
 	dft(complex_samples, output);
+	gettimeofday(&after, NULL);
+	// Set the subtracted elapsed time
+	timersub(&after, &before, &elapsed);
 	
 	// Print and assert without any post-processing
-	printf("=== Result Data ===\n");
+	printf("=== Result Data (Total Time: %lds %ld ms) ===\n", (long int) elapsed.tv_sec, (long int) elapsed.tv_usec);
 	print_data(output);
 	// Reduce the data size accordingly
 	output -> data_size = data_size;
@@ -236,10 +239,15 @@ void test_dft_wiki_example_ctfft() {
 	printf("=== Result Data (Empty) ===\n");
 	print_data(output);
 	
+	struct timeval before, after, elapsed;
+	gettimeofday(&before, NULL);
 	ct_fft(complex_samples, output);
+	gettimeofday(&after, NULL);
+	// Set the subtracted elapsed time
+	timersub(&after, &before, &elapsed);
 	
 	// Print and assert without any post-processing
-	printf("=== Result Data ===\n");
+	printf("=== Result Data (Total Time: %lds %ld ms) ===\n", (long int) elapsed.tv_sec, (long int) elapsed.tv_usec);
 	print_data(output);
 	// Reduce the data size accordingly
 	output -> data_size = data_size;
@@ -336,6 +344,7 @@ void test_dft_10khz_44100hz() {
 
 
 int main(void) {
+	test_dft_1hz_8hz();
 	test_dft_wiki_example();
 	test_dft_wiki_example_ctfft();
 	printlncol(ANSI_GREEN, "=== Tests Complete ===\n");

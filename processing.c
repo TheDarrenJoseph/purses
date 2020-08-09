@@ -214,23 +214,19 @@ void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
 	for (int k=0; k < half_size; k++) {
 		// Butterfly size-2 DFT Operations
 		// Where E is the Even set, O is the Odd set
+		// At this step we are essentially performing our N2 (size-2 DFTs)
+		// These are our summations for each of the 2 DFT outputs X[k] and X[k+N/2]
+		int even_k = k*2;
+		int odd_k = even_k+1;	
+		fprintf(logfile, "Recombining Even: %d, Odd:%d\n", even_k, odd_k);
         	
 		// Calculate the Twiddle Factor (e(−2πi k/N))
 		// Now for Eueler's formula (for any real number x, given as radians)
 		// e^ix = cos(x) + i*sin(x)
-		// At this step we are essentially performing our N2 (size-2 DFTs)
-		// These are our summations for each of the 2 DFT outputs X[k] and X[k+N/2]
-		int even_k = k*2;
-		int odd_k = k*2+1;	
-		fprintf(logfile, "Recombining Even: %d, Odd:%d\n", even_k, odd_k);
-
 		double rads = -2*M_PI*k/size_n;
-			
-		double real_twiddle = cos(rads);
-		double imag_twiddle = sin(rads);
-		double complex twiddle = CMPLX(real_twiddle, imag_twiddle);
+		// Twiddle factor: e(−2πi k/N) = cos(x) + i*sin(x)
+		double complex twiddle = CMPLX(cos(rads), sin(rads));
 		fprintf(logfile, "(Twiddle %d) Input Rads: %02f Real: %02f, Imaginary: %02f\n", k, rads, creal(twiddle), cimag(twiddle));
-		
 		double complex even = recombined_nums[even_k].complex_number;
 		double complex odd = recombined_nums[odd_k].complex_number;
 	
