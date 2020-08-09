@@ -55,9 +55,7 @@ void dft(complex_set_t* x, complex_set_t* X) {
 		fprintf(logfile, "DFT output (%d)...\n", k);
 		
 		// Initialise output (X[k])
-		double real_out = 0.0;
-		double im_out = 0.0;
-		
+		double complex output = CMPLX(0.0,0.0);		
 		// Summation over input index (x[n]), Multiply x[n] by our complex exponent
 		// x[n] * e^-((i^2*M_PI*k*n)/N)
 		// Now for Eueler's formula (for any real number x, given as radians)
@@ -77,12 +75,9 @@ void dft(complex_set_t* x, complex_set_t* X) {
 			fprintf(logfile, "(Output %d/%d) Input Rads: %02f Real: %02f, Imaginary: %02f\n", k, n, rads, real_inc, imag_inc);
 			
 			// Increment X[k] value
-			real_out += real_inc;
-			im_out += imag_inc;
-
+			output += CMPLX(real_inc, imag_inc);
 		}	
-		fprintf(logfile, "(Summation Output %d/%d) Real: %02f, Imaginary: %02f\n", k+1, N, real_out, im_out);
-		double complex output = CMPLX(real_out, im_out);
+		fprintf(logfile, "(Summation Output %d/%d) Real: %02f, Imaginary: %02f\n", k+1, N, creal(output), cimag(output));
 		X -> complex_numbers[k].complex_number = output;
 	}
 }
