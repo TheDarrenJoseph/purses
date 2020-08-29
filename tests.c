@@ -91,9 +91,6 @@ void test_dft_1hz_8hz() {
 		output -> complex_numbers[i] = (complex_wrapper_t) { empty, 0.0 };
 	}
 	
-	printf("=== Result Data (Empty) ===\n");
-	print_data(output);
-	
 	dft(complex_samples, output);
 
 	printf("=== Result Data ===\n");
@@ -174,9 +171,6 @@ void test_dft_wiki_example() {
 		output -> complex_numbers[i] = (complex_wrapper_t) { empty, 0.0 };
 	}
 	
-	printf("=== Result Data (Empty) ===\n");
-	print_data(output);
-	
 	struct timeval before, after, elapsed;
 	gettimeofday(&before, NULL);
 	dft(complex_samples, output);
@@ -235,10 +229,7 @@ void test_dft_wiki_example_ctfft() {
 	for (int i=0; i<8; i++) {
 		output -> complex_numbers[i] = (complex_wrapper_t) { empty, 0.0 };
 	}
-	
-	printf("=== Result Data (Empty) ===\n");
-	print_data(output);
-	
+
 	struct timeval before, after, elapsed;
 	gettimeofday(&before, NULL);
 	ct_fft(complex_samples, output);
