@@ -48,11 +48,17 @@ void set_magnitude(complex_set_t* x, int sample_count) {
 // X - output set
 void dft(complex_set_t* x, complex_set_t* X) {
 	FILE* logfile = get_logfile();
-	fprintf(logfile, "Running DFT...\n");
+	//fprintf(logfile, "Running DFT...\n");
 	int N = x -> data_size;
+	
+	if (N == 1) {
+		X -> complex_numbers[0].complex_number = x -> complex_numbers[0].complex_number;
+		return;
+	}
+		
 	// Output index (k)
 	for (int k=0; k < N; k++) {
-		fprintf(logfile, "DFT output (%d)...\n", k);
+		//fprintf(logfile, "DFT output (%d)...\n", k);
 		
 		// Initialise output (X[k])
 		double complex output = CMPLX(0.0,0.0);		
@@ -128,16 +134,14 @@ void record_stream_to_complex_set(record_stream_data_t* record_stream, complex_s
 // Splits data into an N/2 even and odd set
 // Performs a DFT on each set
 // Recombines the outputs into output_data
-void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data) {
+void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data, int half_size) {
 	FILE* logfile = get_logfile();
 	int sample_rate = input_data -> sample_rate;
 	
-	if (input_data -> data_size == 1) {
-		output_data -> complex_numbers[0] = input_data -> complex_numbers[0]; 
+	if (half_size < 1) {
 		return;
 	}
 	
-	unsigned int half_size = input_data -> data_size/2;
 	// 1. Separate input into an N/2 even and odd set
 	complex_set_t* even_set = 0;
 	complex_set_t* odd_set = 0;
@@ -146,24 +150,25 @@ void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data) {
 	complex_wrapper_t* input_nums = input_data -> complex_numbers;
 	for (int i=0; i < half_size; i++) {
 		int even_i = i*2;
-		int odd_i = i*2+1;		
+		int odd_i = even_i+1;		
 		//fprintf(logfile, "Splitting on Odd: %d, Even: %d\n", odd_i, even_i);
 		even_set -> complex_numbers[i] = input_nums[even_i];
 		odd_set -> complex_numbers[i] = input_nums[odd_i];
 	}
 	
-	half_size_dfts(even_set, output_data);
-	half_size_dfts(odd_set, output_data);
+	half_size_dfts(even_set, output_data, half_size/2);
+	half_size_dfts(odd_set, output_data, half_size/2);
 	
 	// 2. Perform DFT on each (2 DFTs of size half_size)
-	//fprintf(logfile, "=== Performing Odd/Even DFTs ===\n");
+	fprintf(logfile, "=== Performing Odd/Even DFTs of size: %d \n", half_size);
 	complex_set_t* even_out_set = 0;
 	complex_set_t* odd_out_set = 0;
 	malloc_complex_set(&even_out_set, half_size, sample_rate);
 	malloc_complex_set(&odd_out_set, half_size, sample_rate);
+	
 	dft (even_set, even_out_set);
 	dft (odd_set, odd_out_set);
-
+	
 	//fprintf(logfile, "=== Even Out Data ===\n");
 	//fprint_data(logfile, even_out_set);
 	
@@ -174,7 +179,7 @@ void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data) {
 	complex_wrapper_t* output_nums = output_data -> complex_numbers;
 	for (int i=0; i < half_size; i++) {
 		int even_i = i*2;
-		int odd_i = i*2+1;		
+		int odd_i = even_i+1;		
 		
 		double complex even =  even_out_set -> complex_numbers[i].complex_number;
 		double complex odd =  odd_out_set -> complex_numbers[i].complex_number;
@@ -206,8 +211,8 @@ void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
 	//print_data(input_data);
 	
 	complex_set_t* recombined_set = 0;
-	malloc_complex_set(&recombined_set, size_n, input_data -> sample_rate);
-	half_size_dfts(input_data, recombined_set);
+	malloc_complex_set(&recombined_set, half_size, input_data -> sample_rate);
+	half_size_dfts(input_data, recombined_set, half_size);
 		
 	// Twiddle the outputs and recombine
 	complex_wrapper_t* recombined_nums = recombined_set -> complex_numbers;
