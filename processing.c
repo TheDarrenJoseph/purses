@@ -21,7 +21,7 @@ void nyquist_filter(complex_set_t* x, int sample_rate) {
 		double imval = cimag((*complex_sample));
 		int non_zero = (realval != 0.0 || imval != 0.0);
 		if (frequency < nyquist_frequency && non_zero) {
-			printf("Adjusting: %.2f, %.2fi by x2 for Nyquist limit\n", realval, imval);
+			//fprintf("Adjusting: %.2f, %.2fi by x2 for Nyquist limit\n", realval, imval);
 			(*complex_sample) *= 2;
 		} else {
 			(*complex_sample) = CMPLX(0.0, 0.0);
