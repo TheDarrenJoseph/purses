@@ -30,7 +30,7 @@ void fprint_data(FILE* file, complex_set_t* samples) {
 	
 	double sum = 0.0;
 	for (int i=0; i<data_size; i++) {
-		int frequency = freq_resolution * i;
+		double frequency = freq_resolution * i;
 		struct complex_wrapper wrapper = samples -> complex_numbers[i];
 		
 		complex double complex_val = wrapper.complex_number;
@@ -39,7 +39,11 @@ void fprint_data(FILE* file, complex_set_t* samples) {
 		sum += realval;
 		double imval = cimag(complex_val);
 		double mag = wrapper.magnitude;
-		fprintf(file, "(%d - %dHz) - Real: %.2f, Imaginary: %+.2fi, Magnitude: %.2f\n", i, frequency, realval, imval, mag);
+		if (frequency < 1000) {
+			fprintf(file, "(%d - %.0fHz) - Real: %.2f, Imaginary: %+.2fi, Magnitude: %.2f\n", i, frequency, realval, imval, mag);
+		} else {
+			fprintf(file, "(%d - %.3fkHz) - Real: %.2f, Imaginary: %+.2fi, Magnitude: %.2f\n", i, frequency/1000, realval, imval, mag);
+		}
 	}
 }
 

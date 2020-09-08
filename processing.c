@@ -220,4 +220,6 @@ void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
 	
 	// Split the input into half-size DFTs recursively
 	half_size_dfts(input_data, output_data, size_n/2);
+	nyquist_filter(output_data, size_n);
+	set_magnitude(output_data, size_n);
 }

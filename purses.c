@@ -7,6 +7,7 @@
 #include <pulsehandler.h>
 #include <shared.h>
 #include <processing.h>
+#include <visualiser.h>
 
 void print_devicelist(pa_device_t* devices, int size) {
 	int ctr=1;
@@ -51,14 +52,14 @@ int main(void) {
 
 	// init curses
 	initscr();
-	
+	start_color();
+		
 	WINDOW* mainwin;
-	
 	mainwin = newwin(80,80,1,0);
 	
 	// Do stuff
 	fprintf(logfile, "===PulseAudio ncurses Visualiser===\n");
-	printw("Loading sinks...\n");
+	printw(mainwin, "Loading sinks...\n");
 	refresh();
 	
 	// Get devices
@@ -98,13 +99,17 @@ int main(void) {
 	refresh();
 
 	ct_fft(input_set, output_set);
-	printf("=== Result Data ===\n");
+	//printf("=== Result Data ===\n");
 	fprint_data(logfile, output_set);
+	
+	WINDOW* vis_win;
+	vis_win = newwin(40,120,1,0);
+	draw_visualiser(vis_win);
 	
 	fflush(logfile);
 	refresh();
 	
-	wgetch(mainwin);
+	wgetch(vis_win);
 	//getch();
 	
 	delwin(mainwin);
