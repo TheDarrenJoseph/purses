@@ -93,7 +93,7 @@ int main(void) {
 	complex_set_t* input_set = 0;
 	input_set = record_stream_to_complex_set(stream_read_data);
 	// And free the struct when we're done
-	//free(stream_read_data);
+	free(stream_read_data);
 	fflush(logfile);
 	refresh();
 
