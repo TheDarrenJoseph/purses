@@ -79,9 +79,9 @@ int main(void) {
 	record_stream_data_t* stream_read_data = 0;
 	record_device(main_device, &stream_read_data);
 	printw("Recording complete...\n");
-	
 	int streamed_data_size = stream_read_data -> data_size;
-	
+	fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
+
 	//write_to_file(stream_read_data, "record.bin");
 	
 	//record_stream_data_t* file_read_data = 0;
@@ -89,17 +89,22 @@ int main(void) {
 	//read_from_file(file_read_data, "record.bin");
 
 	complex_set_t* output_set = 0;
-	malloc_complex_set(&output_set, streamed_data_size, sample_rate);
+	malloc_complex_set(&output_set, streamed_data_size, SAMPLE_RATE);
 	complex_set_t* input_set = 0;
-	record_stream_to_complex_set(stream_read_data, input_set);
-	
-	//ct_fft(input_set, output_set);
-	
+	input_set = record_stream_to_complex_set(stream_read_data);
 	// And free the struct when we're done
-	free(stream_read_data);
-
+	//free(stream_read_data);
+	fflush(logfile);
 	refresh();
-	//wgetch(mainwin);
+
+	ct_fft(input_set, output_set);
+	printf("=== Result Data ===\n");
+	fprint_data(logfile, output_set);
+	
+	fflush(logfile);
+	refresh();
+	
+	wgetch(mainwin);
 	//getch();
 	
 	delwin(mainwin);

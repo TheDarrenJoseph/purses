@@ -98,11 +98,11 @@ complex_set_t* malloc_complex_set(complex_set_t** set, int sample_count, int sam
 		return (*set);
 }
 
-complex_set_t* build_complex_set(record_stream_data_t* record_data, complex_set_t** set, int sample_count, int sample_rate) {
+complex_set_t* build_complex_set(record_stream_data_t* record_data, int sample_count, int sample_rate) {
 		FILE* logfile = get_logfile();
-		malloc_complex_set(set, sample_count, sample_rate);
-
-		complex_wrapper_t* data = (*set) -> complex_numbers;
+		complex_set_t* output_set = 0;
+		malloc_complex_set(&output_set, sample_count, sample_rate);
+		complex_wrapper_t* data = output_set -> complex_numbers;
 		// Convert samples to Complex numbers
 		for (int i=0; i<sample_count; i++) {
 			int16_t sample = record_data -> data[i];
@@ -110,13 +110,13 @@ complex_set_t* build_complex_set(record_stream_data_t* record_data, complex_set_
 			data[i].complex_number = CMPLX((double) sample, 0.00);
 			data[i].magnitude = 0.00;
 		}
-		return (*set);
+		return output_set;
 }
 
 /**
  * Initialises output_set from the record_stream
  */
-void record_stream_to_complex_set(record_stream_data_t* record_stream, complex_set_t* output_set) {
+complex_set_t* record_stream_to_complex_set(record_stream_data_t* record_stream) {
 	FILE* logfile = get_logfile();
 	unsigned int size_n = record_stream -> data_size;
 	
@@ -128,9 +128,13 @@ void record_stream_to_complex_set(record_stream_data_t* record_stream, complex_s
 		return;
 	}
 	
-	// Allocate input set
-	complex_set_t* input_set = 0;
-	build_complex_set(record_stream, &output_set, size_n, SAMPLE_RATE);
+	complex_set_t* output_set = 0;
+	output_set = build_complex_set(record_stream, size_n, SAMPLE_RATE);
+	fprintf(logfile, "Done converting record stream to data set.\n");
+	fprintf(logfile, "Data set size: %d\n", output_set -> data_size);
+	fprintf(logfile, "Data set sample rate: %dHz\n", SAMPLE_RATE);
+	
+	return output_set;
 }
 
 // Splits data into an N/2 even and odd set
@@ -206,6 +210,7 @@ void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data, int h
 void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
 	FILE* logfile = get_logfile();
 	unsigned int size_n = input_data -> data_size;
+	fprintf(logfile, "=== Performing Radix-2 CT FFT of size: %d \n", size_n);
 
 	// Trivial size-1 DFT 
 	if (size_n == 1) {
