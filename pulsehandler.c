@@ -163,15 +163,15 @@ void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void*
 /**
  * Warning: This currently hangs the thread on execution
  **/
-void pa_disconnect_context(pa_context** pa_ctx) {
+void pa_disconnect_context(pa_context* pa_ctx) {
 	FILE* logfile = get_logfile();
 	fprintf(logfile, "Disconnecting PA Context...\n");
-	pa_context_disconnect(*pa_ctx);
-	pa_context_unref(*pa_ctx);
+	pa_context_disconnect(pa_ctx);
+	//pa_context_unref(*pa_ctx);
 	fprintf(logfile, "Disconnected PA Context!\n");
 }
 
-void pa_disconnect(pa_context** pa_ctx, pa_mainloop** mainloop) {
+void pa_disconnect(pa_mainloop** mainloop) {
 	FILE* logfile = get_logfile();
 	fprintf(logfile, "Disconnecting from PA...\n");
 	fflush(logfile);
@@ -275,8 +275,7 @@ int await_stream_termination(pa_mainloop* mainloop, pa_context* pa_ctx, pa_strea
 	enum pa_state stream_state = NOT_READY;
 	pa_stream_set_state_callback(stream, pa_stream_state_cb, &stream_state);
 		
-	//for (int i=0; i < MAX_ITERATIONS; i++) {	
-	for(;;) {	
+	for (int i=0; i < MAX_ITERATIONS; i++) {	
 		switch (stream_state) {
 			case NOT_READY:
 			case READY: 
@@ -379,7 +378,7 @@ int read_data(const void* data, record_stream_data_t* data_output, long int buff
 		// Our format should correspond to signed int of minimum 16 bits
 		// Set the variable in our output data to match
 		data_output -> data[i] = (int16_t) data_p[i];
-		fprintf(logfile, "index: %ld, data: %d\n", i , (signed int) data_p[i]);
+		//fprintf(logfile, "index: %ld, data: %d\n", i , (signed int) data_p[i]);
 	}
 	fprintf(logfile, "Read %ld bytes from the stream.\n", BUFFER_BYTE_COUNT);
 	return 0;
@@ -539,7 +538,7 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop* mainloop, p
 	fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
 	fflush(logfile);
 	await_stream_termination(mainloop, pa_ctx, record_stream, mainloop_retval);
-	fflush(logfile);
+	//fflush(logfile);
 	
 	// Success / Failure states
 	if (mainloop_retval >= 0) {
@@ -567,8 +566,8 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
 	pa_context_connect(pa_ctx, NULL, 0 , NULL);
 
 	perform_operation(mainloop, pa_ctx, get_sink_list, output_devices);
-	//pa_disconnect_context(&pa_ctx);
-	pa_disconnect(&pa_ctx, &mainloop);
+	pa_disconnect_context(pa_ctx);
+	pa_disconnect(&mainloop);
 
 	
 	int dev_count = 0;
@@ -624,8 +623,9 @@ int record_device(pa_device_t device, record_stream_data_t** stream_read_data) {
 	}
 	
 	// why does this hang the thread?
-	//pa_disconnect_context(&pa_ctx);
-	pa_disconnect(&pa_ctx, &mainloop);
+	//pa_context_disconnect(pa_ctx);
+	pa_disconnect_context(&pa_ctx);
+	pa_disconnect(&mainloop);
 	fflush(logfile);
 	return 0;
 }

@@ -10,6 +10,7 @@
 #include <visualiser.h>
 
 void print_devicelist(pa_device_t* devices, int size) {
+	FILE* logfile = get_logfile();
 	int ctr=1;
 	int found=0;
 	for (int i=0; i < size; i++) {
@@ -19,12 +20,12 @@ void print_devicelist(pa_device_t* devices, int size) {
 		char* description = device.description;
 		
 		if (device.initialized) {
-			printw("=== Device %d, %d ===\n", i+1, device.index);
-			printw("Initialised: %d\n", device.initialized);
-			printw("Input Device: %d\n", ctr);
-			printw("Description: %s\n", description);
-			printw("Name: %s\n", device.name);
-			printw("\n");
+			fprintf(logfile, "=== Device %d, %d ===\n", i+1, device.index);
+			fprintf(logfile, "Initialised: %d\n", device.initialized);
+			fprintf(logfile, "Input Device: %d\n", ctr);
+			fprintf(logfile, "Description: %s\n", description);
+			fprintf(logfile, "Name: %s\n", device.name);
+			fprintf(logfile, "\n");
 			found = 1;
 		} 
 		ctr++;
@@ -36,10 +37,8 @@ void print_devicelist(pa_device_t* devices, int size) {
 
 int get_devices(pa_device_t* device_list, int* count) {
   int sink_list_stat = get_sinklist(device_list, count);
-  printw("Retrieved %d Sink Devices...\n", (*count));
 
   if(sink_list_stat != 0) {
-  	printw("Failed to fetch PulseAudio devices!");
 	return 1;
   }  else {
 	return 0;
@@ -62,55 +61,59 @@ int main(void) {
 	printw(mainwin, "Loading sinks...\n");
 	refresh();
 	
-	// Get devices
+	int iterations=0;
+	while(true) {
+		// Get devices
+		// This is where we'll store the output device list
+		pa_device_t output_devicelist[16];
 
-	// This is where we'll store the input device list
-	//pa_devicelist_t pa_input_devicelist[16];
+		int count = 0;
+		int dev_stat = get_devices(output_devicelist, &count);
+		if (dev_stat == 0) print_devicelist(output_devicelist, 16);
+		
+		pa_device_t main_device = output_devicelist[0];
+		record_stream_data_t* stream_read_data = 0;
+		record_device(main_device, &stream_read_data);
+		int streamed_data_size = stream_read_data -> data_size;
+		fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
 
-	// This is where we'll store the output device list
-	pa_device_t output_devicelist[16];
+		//write_to_file(stream_read_data, "record.bin");
+		
+		//record_stream_data_t* file_read_data = 0;
+		//init_record_data(&file_read_data);
+		//read_from_file(file_read_data, "record.bin");
 
-	int count = 0;
-	int dev_stat = get_devices(output_devicelist, &count);
-	if (dev_stat == 0) print_devicelist(output_devicelist, 16);
-	
-	refresh();
-	
-	pa_device_t main_device = output_devicelist[0];
-	record_stream_data_t* stream_read_data = 0;
-	record_device(main_device, &stream_read_data);
-	printw("Recording complete...\n");
-	int streamed_data_size = stream_read_data -> data_size;
-	fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
+		complex_set_t* output_set = 0;
+		malloc_complex_set(&output_set, streamed_data_size, SAMPLE_RATE);
+		complex_set_t* input_set = 0;
+		input_set = record_stream_to_complex_set(stream_read_data);
+		// And free the struct when we're done
+		free(stream_read_data);
+		//fflush(logfile);
+		//refresh();
 
-	//write_to_file(stream_read_data, "record.bin");
-	
-	//record_stream_data_t* file_read_data = 0;
-	//init_record_data(&file_read_data);
-	//read_from_file(file_read_data, "record.bin");
+		ct_fft(input_set, output_set);
+		nyquist_filter(output_set, streamed_data_size);
+		set_magnitude(output_set, streamed_data_size);
+		//printf("=== Result Data ===\n");
+		//fprint_data(logfile, output_set);
+		
+		WINDOW* vis_win;
+		vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
+		draw_visualiser(vis_win, output_set);
+		
+		mvwprintw(vis_win, 0, 0, "%d", iterations);
+		//wrefresh(mainwin);
+		wrefresh(vis_win);
 
-	complex_set_t* output_set = 0;
-	malloc_complex_set(&output_set, streamed_data_size, SAMPLE_RATE);
-	complex_set_t* input_set = 0;
-	input_set = record_stream_to_complex_set(stream_read_data);
-	// And free the struct when we're done
-	free(stream_read_data);
-	fflush(logfile);
-	refresh();
-
-	ct_fft(input_set, output_set);
-	//printf("=== Result Data ===\n");
-	fprint_data(logfile, output_set);
-	
-	WINDOW* vis_win;
-	vis_win = newwin(40,120,1,0);
-	draw_visualiser(vis_win);
-	
-	fflush(logfile);
-	refresh();
-	
-	wgetch(vis_win);
-	//getch();
+		// Let things catch up
+		refresh();
+		fflush(logfile);
+		//wgetch(vis_win);
+		//getch();
+		//sleep(5000);
+		iterations+=1;
+	}
 	
 	delwin(mainwin);
 	endwin();

@@ -15,9 +15,10 @@
 #define DEVICE_MAX 16
 
 // 44100 Hz sample rate
-#define SAMPLE_RATE 512
+#define SAMPLE_RATE 44100
+#define NUM_SAMPLES 1024
 
-static const size_t BUFFER_BYTE_COUNT = SAMPLE_RATE;
+static const size_t BUFFER_BYTE_COUNT = NUM_SAMPLES;
 
 typedef struct record_stream_data {
   // signed 16-bit integers, size power of 2
@@ -30,6 +31,7 @@ typedef struct record_stream_data {
 typedef struct complex_wrapper {
   double complex complex_number;
   double magnitude;
+  double decibels;
 } complex_wrapper_t;
 
 // For use with native complex.h 

@@ -32,6 +32,7 @@ void nyquist_filter(complex_set_t* x, int sample_rate) {
 	x -> data_size = nyquist_frequency;
 }
 
+// Sets the magnitude and decibels for the samples
 void set_magnitude(complex_set_t* x, int sample_count) {
 	int data_size = x -> data_size;
 	for (int i=0; i<data_size; i++) {
@@ -40,7 +41,9 @@ void set_magnitude(complex_set_t* x, int sample_count) {
 		double complex complex_val = this_val -> complex_number;
 		
 		// Calculate magnitude
-		x -> complex_numbers[i].magnitude = ((cabs(complex_val)) / sample_count);
+		x -> complex_numbers[i].magnitude = (cabs(complex_val) / sample_count);
+		// Amplitude in Decibels = 20log10(|m|)
+		x -> complex_numbers[i].decibels = 20*log10(x -> complex_numbers[i].magnitude);
 	}
 }
 
@@ -54,7 +57,7 @@ void dft(complex_set_t* x, complex_set_t* X) {
 	if (N == 1) {
 		double complex x0 = x -> complex_numbers[0].complex_number;
 		X -> complex_numbers[0].complex_number = x0;
-		fprintf(logfile, "(Output 0/0) Real: %02f, Imaginary: %02f\n", creal(x0), cimag(x0));
+		//fprintf(logfile, "(Output 0/0) Real: %02f, Imaginary: %02f\n", creal(x0), cimag(x0));
 		return;
 	}
 		
@@ -80,12 +83,12 @@ void dft(complex_set_t* x, complex_set_t* X) {
 			double rads = (2*M_PI/N)*k*n;
 			double real_inc = (real_xn * cos(rads)) + (im_xn * sin(rads));
 			double imag_inc = (-real_xn * sin(rads)) + (im_xn * cos(rads));
-			fprintf(logfile, "(Output %d/%d) Input Rads: %02f Real: %02f, Imaginary: %02f\n", k, n, rads, real_inc, imag_inc);
+			//fprintf(logfile, "(Output %d/%d) Input Rads: %02f Real: %02f, Imaginary: %02f\n", k, n, rads, real_inc, imag_inc);
 			
 			// Increment X[k] value
 			output += CMPLX(real_inc, imag_inc);
 		}	
-		fprintf(logfile, "(Summation Output %d/%d) Real: %02f, Imaginary: %02f\n", k+1, N, creal(output), cimag(output));
+		//fprintf(logfile, "(Summation Output %d/%d) Real: %02f, Imaginary: %02f\n", k+1, N, creal(output), cimag(output));
 		X -> complex_numbers[k].complex_number = output;
 	}
 }
@@ -106,7 +109,7 @@ complex_set_t* build_complex_set(record_stream_data_t* record_data, int sample_c
 		// Convert samples to Complex numbers
 		for (int i=0; i<sample_count; i++) {
 			int16_t sample = record_data -> data[i];
-			fprintf(logfile, "Read sample (%d) : %d\n", i, sample);
+			//fprintf(logfile, "Read sample (%d) : %d\n", i, sample);
 			data[i].complex_number = CMPLX((double) sample, 0.00);
 			data[i].magnitude = 0.00;
 		}
@@ -147,7 +150,7 @@ void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data, int h
 	if (half_size < 1) {
 		return;
 	}
-	fprintf(logfile, "=== Performing half-size DFTs of size: %d \n", half_size);
+	//fprintf(logfile, "=== Performing half-size DFTs of size: %d \n", half_size);
 	
 	// 1. Separate input into an N/2 even and odd set
 	complex_set_t* even_set = 0;
@@ -172,15 +175,15 @@ void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data, int h
 	half_size_dfts(even_set, even_out_set, half_size/2);
 	half_size_dfts(odd_set, odd_out_set, half_size/2);
 	
-	fprintf(logfile, "=== Performing Even-indexed DFT of size: %d\n", half_size);
+	//fprintf(logfile, "=== Performing Even-indexed DFT of size: %d\n", half_size);
 	dft (even_set, even_out_set);
-	fprintf(logfile, "=== Performing Odd-indexed DFT of size: %d\n", half_size);
+	//fprintf(logfile, "=== Performing Odd-indexed DFT of size: %d\n", half_size);
 	dft (odd_set, odd_out_set);
 	
 	// Recombine the split sets into the output set
 	complex_wrapper_t* output_nums = output_data -> complex_numbers;
 	unsigned int size_n = input_data -> data_size;
-	fprintf(logfile, "=== Recombining half-size Even/Odd DFTs of size: %d\n", half_size);
+	//fprintf(logfile, "=== Recombining half-size Even/Odd DFTs of size: %d\n", half_size);
 	for (int k=0; k < half_size; k++) {
 		// Calculate the Twiddle Factor (e(−2πi k/N))
 		// Now for Eueler's formula (for any real number x, given as radians)
@@ -210,7 +213,7 @@ void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data, int h
 void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
 	FILE* logfile = get_logfile();
 	unsigned int size_n = input_data -> data_size;
-	fprintf(logfile, "=== Performing Radix-2 CT FFT of size: %d \n", size_n);
+	//fprintf(logfile, "=== Performing Radix-2 CT FFT of size: %d \n", size_n);
 
 	// Trivial size-1 DFT 
 	if (size_n == 1) {
@@ -220,6 +223,4 @@ void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
 	
 	// Split the input into half-size DFTs recursively
 	half_size_dfts(input_data, output_data, size_n/2);
-	nyquist_filter(output_data, size_n);
-	set_magnitude(output_data, size_n);
 }

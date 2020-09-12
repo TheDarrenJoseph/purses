@@ -39,10 +39,11 @@ void fprint_data(FILE* file, complex_set_t* samples) {
 		sum += realval;
 		double imval = cimag(complex_val);
 		double mag = wrapper.magnitude;
+		double db = wrapper.decibels;
 		if (frequency < 1000) {
-			fprintf(file, "(%d - %.0fHz) - Real: %.2f, Imaginary: %+.2fi, Magnitude: %.2f\n", i, frequency, realval, imval, mag);
+			fprintf(file, "(%d - %.0fHz) - Real: %.2f, Imaginary: %+.2fi, Magnitude: %.2f, Decibels: %.2f\n", i, frequency, realval, imval, mag, db);
 		} else {
-			fprintf(file, "(%d - %.3fkHz) - Real: %.2f, Imaginary: %+.2fi, Magnitude: %.2f\n", i, frequency/1000, realval, imval, mag);
+			fprintf(file, "(%d - %.3fkHz) - Real: %.2f, Imaginary: %+.2fi, Magnitude: %.2f, Decibels: %.2f\n", i, frequency/1000, realval, imval, mag, db);
 		}
 	}
 }

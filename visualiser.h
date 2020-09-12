@@ -4,6 +4,12 @@
 #include <pulse/pulseaudio.h>
 #include <ncurses.h>
 
-void draw_bar(WINDOW* win, int start_x, int height);
+#include <shared.h>
 
-void draw_visualiser(WINDOW* win);
+#define VIS_HEIGHT 45
+#define VIS_WIDTH 120
+
+
+void draw_bar(WINDOW* win, int start_x, int height, const char* label);
+
+void draw_visualiser(WINDOW* win, complex_set_t* output_set);
