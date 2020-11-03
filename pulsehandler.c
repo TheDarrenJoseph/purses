@@ -181,23 +181,23 @@ void pa_disconnect(pa_mainloop** mainloop) {
 }
 
 
-void get_pa_context(char* context_name, pa_mainloop** mainloop, pa_mainloop_api** pa_mlapi, pa_context** pa_ctx) {
+void get_pa_context(char* context_name, pa_session_t* session) {
     // Define our pulse audio loop and connection variables
-    *mainloop = pa_mainloop_new();
-    *pa_mlapi = pa_mainloop_get_api(*mainloop);
-    *pa_ctx = pa_context_new(*pa_mlapi, context_name); 
+    session -> mainloop = pa_mainloop_new();
+    session -> mainloop_api = pa_mainloop_get_api(session -> mainloop);
+    session -> context = pa_context_new(session -> mainloop_api, context_name); 
 }
 
 pa_operation* get_sink_list(pa_context* pa_ctx, void* userdata) {
 	return pa_context_get_sink_info_list(pa_ctx, pa_sinklist_cb, userdata);
 }
 
-int await_context_state(pa_mainloop* mainloop, pa_context* pa_ctx, pa_state_t expected_state) {
+int await_context_state(pa_session_t* session, pa_state_t expected_state) {
 	FILE* logfile = get_logfile();
 
 	// This hooks up a callback to set pa_ready/keep this int updated
 	int pa_ready = 0;
-	pa_context_set_state_callback(pa_ctx, pa_context_state_cb, &pa_ready);
+	pa_context_set_state_callback(session -> context, pa_context_state_cb, &pa_ready);
 	fprintf(logfile, "Awaiting context state: %s...\n", PA_STATE_LOOKUP[expected_state]);
 	for (int i=0; i < MAX_ITERATIONS; i++) {		
 		if (pa_ready == expected_state) {
@@ -211,10 +211,10 @@ int await_context_state(pa_mainloop* mainloop, pa_context* pa_ctx, pa_state_t ex
 			case READY:
 				//	fprintf(logfile, "Awaiting context setup... (%d)\n", i);
 				// Block until we get something useful
-				pa_mainloop_iterate(mainloop, 1, NULL);
+				pa_mainloop_iterate(session -> mainloop, 1, NULL);
 				break;
 			case ERROR:
-				fprintf(logfile, "PA context encountered an error: %s!\n", pa_strerror(pa_context_errno(pa_ctx)));
+				fprintf(logfile, "PA context encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));
 				return 1;
 			case TERMINATED:
 				// As per docs:
@@ -233,7 +233,7 @@ int await_context_state(pa_mainloop* mainloop, pa_context* pa_ctx, pa_state_t ex
 }
 
 
-int await_stream_ready(pa_mainloop* mainloop, pa_context* pa_ctx, pa_stream* stream) {
+int await_stream_ready(pa_session_t* session, pa_stream* stream) {
 	FILE* logfile = get_logfile();
 
 	enum pa_state stream_state = NOT_READY;
@@ -242,13 +242,13 @@ int await_stream_ready(pa_mainloop* mainloop, pa_context* pa_ctx, pa_stream* str
 	for (int i=0; i < MAX_ITERATIONS; i++) {		
 		switch (stream_state) {
 			case NOT_READY:
-				pa_mainloop_iterate(mainloop, 1, NULL);
+				pa_mainloop_iterate(session, 1, NULL);
 				break;
 			case READY: 
 				fprintf(logfile, "PA Stream ready.\n");
 				return 0;
 			case ERROR:
-				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(pa_ctx)));
+				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));
 				return 1;
 			case TERMINATED:
 				if (BUFFER_FILLED) {
@@ -269,7 +269,7 @@ int await_stream_ready(pa_mainloop* mainloop, pa_context* pa_ctx, pa_stream* str
 	return 1;
 }
 
-int await_stream_termination(pa_mainloop* mainloop, pa_context* pa_ctx, pa_stream* stream, int* mainloop_retval) {
+int await_stream_termination(pa_session_t* session, pa_stream* stream, int* mainloop_retval) {
 	FILE* logfile = get_logfile();
 
 	enum pa_state stream_state = NOT_READY;
@@ -279,10 +279,10 @@ int await_stream_termination(pa_mainloop* mainloop, pa_context* pa_ctx, pa_strea
 		switch (stream_state) {
 			case NOT_READY:
 			case READY: 
-				(*mainloop_retval) = pa_mainloop_iterate(mainloop, 0, NULL);
+				(*mainloop_retval) = pa_mainloop_iterate(session -> mainloop, 0, NULL);
 				break;
 			case ERROR:
-				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(pa_ctx)));
+				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));
 				return 1;
 			case TERMINATED:
 				if (BUFFER_FILLED) {
@@ -333,10 +333,10 @@ int await_operation(pa_mainloop* mainloop, pa_operation* pa_op, pa_context* pa_c
 }
 
 // callback is our implementation function returning pa_operation
-int perform_operation(pa_mainloop* mainloop, pa_context* pa_ctx, pa_operation* (*callback) (pa_context* pa_ctx, void* cb_userdata), void* userdata) {
+int perform_operation(pa_session_t* session, pa_operation* (*callback) (pa_context* pa_ctx, void* cb_userdata), void* userdata) {
 	FILE* logfile = get_logfile();
 	
-	int await_stat = await_context_state(mainloop, pa_ctx, READY);
+	int await_stat = await_context_state(session, READY);
 	if (await_stat != 0) {
 		fprintf(logfile, "Awaiting PA Context Ready returned failure code: %d\n", await_stat);
 		return 1;
@@ -347,12 +347,12 @@ int perform_operation(pa_mainloop* mainloop, pa_context* pa_ctx, pa_operation* (
 	for (int i=0; i < MAX_ITERATIONS; i++) {		
 		if (!context_set) {
 			fprintf(logfile, "Performing operation...\n");
-			pa_op = (*callback)(pa_ctx, userdata);
+			pa_op = (*callback)(session -> context, userdata);
 			context_set = true;
 		} 
 		
 		if (context_set && pa_op != 0) {
-			int await_op_stat = await_operation(mainloop, pa_op, pa_ctx);
+			int await_op_stat = await_operation(session -> mainloop, pa_op, session -> context);
 			
 			// I'd like to call pa_unref here, but it seems to always be 0 ref?
 			if (await_op_stat != 0) {
@@ -458,7 +458,7 @@ void pa_stream_success_cb(pa_stream *stream, int success, void *userdata) {
 	}
 }
 
-int setup_record_stream(const char* device_name, int sink_idx, pa_mainloop* mainloop, pa_context* pa_ctx, pa_stream** record_stream, enum pa_state* stream_state, record_stream_data_t* stream_read_data) {
+int setup_record_stream(const char* device_name, int sink_idx, pa_session_t* session, pa_stream** record_stream, enum pa_state* stream_state, record_stream_data_t* stream_read_data) {
 	FILE* logfile = get_logfile();
 	
 	const pa_sample_spec * ss = &mono_ss;
@@ -468,7 +468,7 @@ int setup_record_stream(const char* device_name, int sink_idx, pa_mainloop* main
 
 	// pa_stream_new for PCM
 	fprintf(logfile, "Initialising PA Stream for device: %s\n", device_name);
-	(*record_stream) = pa_stream_new((pa_ctx), "purses record stream", ss, &map);
+	(*record_stream) = pa_stream_new(session -> context, "purses record stream", ss, &map);
 
 	// This connects to the PulseAudio server to read 
 	// from the device to our stream
@@ -500,10 +500,10 @@ int setup_record_stream(const char* device_name, int sink_idx, pa_mainloop* main
 	}
 }
 
-int perform_read(const char* device_name, int sink_idx, pa_mainloop* mainloop, pa_context* pa_ctx, record_stream_data_t* stream_read_data, int* mainloop_retval ) {
+int perform_read(const char* device_name, int sink_idx, pa_session_t* session, record_stream_data_t* stream_read_data, int* mainloop_retval) {
 	FILE* logfile = get_logfile();
 	
-	int await_stat = await_context_state(mainloop, pa_ctx, READY);
+	int await_stat = await_context_state(session, READY);
 	if (await_stat != 0) {
 		fprintf(logfile, "Awaiting PA Context Ready returned failure code: %d\n", await_stat);
 		return 1;
@@ -512,14 +512,14 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop* mainloop, p
 	pa_stream* record_stream = NULL;
 	enum pa_state stream_state = NOT_READY;
 	
-	int setup_stat = setup_record_stream(device_name, sink_idx, mainloop, pa_ctx, &record_stream, &stream_state, stream_read_data);
+	int setup_stat = setup_record_stream(device_name, sink_idx, session, &record_stream, &stream_state, stream_read_data);
 	if (setup_stat != 0) {
 		fprintf(logfile, "Record stream setup failed with return code: %d", setup_stat);
 		return 1;
 	}	
 	
 	// await stream readiness
-	await_stream_ready(mainloop, pa_ctx, record_stream);
+	await_stream_ready(session, record_stream);
 	
 	// Set the data read callback now
 	pa_stream_set_read_callback(record_stream, read_stream_cb, stream_read_data);
@@ -530,14 +530,14 @@ int perform_read(const char* device_name, int sink_idx, pa_mainloop* mainloop, p
 		if (pa_stream_is_corked(record_stream)) {
 			fprintf(logfile, "Uncorking stream... \n");
 			// Resume the stream now it's ready
-			pa_stream_cork(record_stream, 0, pa_stream_success_cb, mainloop);
-			pa_mainloop_iterate(mainloop, 1, mainloop_retval);
+			pa_stream_cork(record_stream, 0, pa_stream_success_cb, session -> context);
+			pa_mainloop_iterate(session -> mainloop, 1, mainloop_retval);
 		} 
 	}
 		
 	fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
 	fflush(logfile);
-	await_stream_termination(mainloop, pa_ctx, record_stream, mainloop_retval);
+	await_stream_termination(session, record_stream, mainloop_retval);
 	//fflush(logfile);
 	
 	// Success / Failure states
@@ -558,16 +558,13 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
     memset(output_devices, 0, sizeof(pa_device_t) * DEVICE_MAX);
 
     // Define our pulse audio loop and connection variables
-    pa_mainloop* mainloop = NULL;
-	pa_mainloop_api* pa_mlapi = NULL;
-    pa_context* pa_ctx = NULL;
-	get_pa_context("sink-list", &mainloop, &pa_mlapi, &pa_ctx);
+    pa_session_t* session = 0;
+	get_pa_context("sink-list", session);
 	
-	pa_context_connect(pa_ctx, NULL, 0 , NULL);
-
-	perform_operation(mainloop, pa_ctx, get_sink_list, output_devices);
-	pa_disconnect_context(pa_ctx);
-	pa_disconnect(&mainloop);
+	pa_context_connect(session -> context, NULL, 0 , NULL);
+	perform_operation(session, get_sink_list, output_devices);
+	pa_disconnect_context(session -> context);
+	pa_disconnect(session -> mainloop);
 
 	
 	int dev_count = 0;
@@ -595,38 +592,35 @@ void init_record_data(record_stream_data_t** stream_read_data) {
 	}
 }
 
-int record_device(pa_device_t device, record_stream_data_t** stream_read_data) {	
-	FILE* logfile = get_logfile();
-	fprintf(logfile, "Recording device: %s\n", device.name);
-
-    // Define our pulse audio loop and connection variables
-    pa_mainloop* mainloop = NULL;
-	pa_mainloop_api* pa_mlapi = NULL;
-    pa_context* pa_ctx = NULL;
+int record_device(pa_device_t device, record_stream_data_t **stream_read_data) {
+    FILE *logfile = get_logfile();
+    fprintf(logfile, "Recording device: %s\n", device.name);
 
     int mainloop_retval = 0;
-	get_pa_context("visualiser-pcm-recording", &mainloop, &pa_mlapi, &pa_ctx);
-	
-	pa_context_connect(pa_ctx, NULL, 0 , NULL);
-	init_record_data(stream_read_data);
-	
-	int read_stat = perform_read(device.monitor_source_name, device.index, mainloop, pa_ctx, (*stream_read_data), &mainloop_retval);
+    pa_session_t *session;
+    get_pa_context("visualiser-pcm-recording", session);
 
-	if (read_stat == 0) {
-		fprintf(logfile, "Recording complete.\n");
-		//(*buffer_size) = BUFFER_BYTE_COUNT;
-		// Display our data?
-		
-	} else {
-		fprintf(logfile, "Recording failed!\n");
-		//(*buffer_size) = 0;
-	}
-	
-	// why does this hang the thread?
-	//pa_context_disconnect(pa_ctx);
-	pa_disconnect_context(&pa_ctx);
-	pa_disconnect(&mainloop);
-	fflush(logfile);
-	return 0;
+    pa_context_connect(session->context, NULL, 0, NULL);
+    init_record_data(stream_read_data);
+
+    int read_stat = perform_read(device.monitor_source_name, device.index, session, (*stream_read_data),
+                                 &mainloop_retval);
+
+    if (read_stat == 0) {
+        fprintf(logfile, "Recording complete.\n");
+        //(*buffer_size) = BUFFER_BYTE_COUNT;
+        // Display our data?
+
+    } else {
+        fprintf(logfile, "Recording failed!\n");
+        //(*buffer_size) = 0;
+    }
+
+    // why does this hang the thread?
+    //pa_context_disconnect(pa_ctx);
+    pa_disconnect_context(session -> context);
+    pa_disconnect(session -> mainloop);
+    fflush(logfile);
+    return 0;
 }
 

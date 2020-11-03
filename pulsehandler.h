@@ -43,6 +43,13 @@ typedef enum pa_state {
 	UNKOWN 
 } pa_state_t;
 
+typedef struct pa_session {
+  // Define our pulse audio loop and connection variables
+  pa_mainloop* mainloop;
+	pa_mainloop_api* mainloop_api;
+  pa_context* context;
+} pa_session_t;
+
 void state_cb(pa_context* context, void* userdata);
 
 void print_devicelist(pa_device_t* devices, int size);
@@ -50,15 +57,14 @@ void print_devicelist(pa_device_t* devices, int size);
 void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, 
 int eol, void* userdata);
 
-int perform_operation(pa_mainloop* mainloop, pa_context* pa_ctx, 
+int perform_operation(pa_session_t* session,
 pa_operation* (*callback) (pa_context* pa_ctx, void* cb_userdata), void* userdata);
 
 int setup_record_stream(const char* device_name, int sink_idx, 
-pa_mainloop* mainloop, pa_context* pa_ctx, pa_stream** record_stream, 
+pa_session_t* session, pa_stream** record_stream,
 enum pa_state* stream_state, record_stream_data_t* stream_read_data);
 
-int perform_read(const char* device_name, int sink_idx, 
-pa_mainloop* mainloop, pa_context* pa_ctx, record_stream_data_t* stream_read_data, int* mainloop_retval );
+int perform_read(const char* device_name, int sink_idx, pa_session_t* session, record_stream_data_t* stream_read_data, int* mainloop_retval );
 
 int get_sinklist(pa_device_t* output_devices, int* count);
 

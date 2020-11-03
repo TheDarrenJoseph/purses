@@ -61,8 +61,7 @@ int main(void) {
 	printw(mainwin, "Loading sinks...\n");
 	refresh();
 	
-	int iterations=0;
-	while(true) {
+	for(int i=0; i<500; i++) {
 		// Get devices
 		// This is where we'll store the output device list
 		pa_device_t output_devicelist[16];
@@ -102,7 +101,8 @@ int main(void) {
 		vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
 		draw_visualiser(vis_win, output_set);
 		
-		mvwprintw(vis_win, 0, 0, "%d", iterations);
+		fprintf(logfile, "Iteration %d\n", i);
+		mvwprintw(vis_win, 0, 0, "%d", i);
 		//wrefresh(mainwin);
 		wrefresh(vis_win);
 
@@ -112,7 +112,6 @@ int main(void) {
 		//wgetch(vis_win);
 		//getch();
 		//sleep(5000);
-		iterations+=1;
 	}
 	
 	delwin(mainwin);
