@@ -139,45 +139,59 @@ void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void*
     // they're going to get dropped.  You could make this dynamically allocate
     // space for the device list, but this is a simple example.
     for (int i = 0; i < DEVICE_MAX; i++) {
-		pa_device_t device = pa_devicelist[i];
-		// This is a guard against overwriting fetched devices
-        if (!device.initialized) {
-            if (strlen(sink_info -> name) > 0) {
-				device.index = sink_info -> index;
-				strncpy(device.name, sink_info -> name, 511);
-				strncpy(device.monitor_source_name, sink_info -> monitor_source_name, 511);
-				strncpy(device.description, sink_info -> description, 255);
-				device.initialized = 1;
-				fprintf(logfile, "Found device %d, Index %d, Name: %s\n", i, device.index, device.name);
+			pa_device_t device = pa_devicelist[i];
+			// This is a guard against overwriting fetched devices
+      if (!device.initialized) {
+      	if (strlen(sink_info -> name) > 0) {
+					device.index = sink_info -> index;
+					strncpy(device.name, sink_info -> name, 511);
+					strncpy(device.monitor_source_name, sink_info -> monitor_source_name, 511);
+					strncpy(device.description, sink_info -> description, 255);
+					device.initialized = 1;
+					fprintf(logfile, "Found device %d, Index %d, Name: %s\n", i, device.index, device.name);
 
-				if (device.initialized) {
-					fprintf(logfile, "Initialized device %d\n", i);
+					if (device.initialized) {
+						fprintf(logfile, "Initialized device %d\n", i);
+					}
+					pa_devicelist[i] = device;
+					return;
 				}
-				pa_devicelist[i] = device;
-				return;
-			}
-        }
+    	}
     }
 }
 
-/**
- * Warning: This currently hangs the thread on execution
- **/
-void pa_disconnect_context(pa_context* pa_ctx) {
+void pa_disconnect_context(pa_context** pa_ctx) {
 	FILE* logfile = get_logfile();
-	fprintf(logfile, "Disconnecting PA Context...\n");
-	pa_context_disconnect(pa_ctx);
-	//pa_context_unref(*pa_ctx);
-	fprintf(logfile, "Disconnected PA Context!\n");
+
+	if ((*pa_ctx) != NULL) {
+		pa_context_state_t pa_con_state = pa_context_get_state(*pa_ctx);
+		fprintf(logfile, "Disconnecting PA Context with state: %d\n", pa_con_state);
+	  if (pa_con_state == PA_CONTEXT_TERMINATED) {
+			fprintf(logfile, "PA Context was already terminated.\n");
+		} else {
+			fprintf(logfile, "Disconnecting PA Context...\n");
+			pa_context_disconnect(*pa_ctx);
+			*pa_ctx = NULL;
+			//pa_context_unref(*pa_ctx);
+			fprintf(logfile, "Disconnected PA Context!\n");
+		}
+	} else {
+		fprintf(logfile, "Cannot disconnect. PA Context was NULL!\n");
+	}
 }
 
-void pa_disconnect(pa_mainloop* mainloop) {
+void pa_disconnect(pa_mainloop** mainloop) {
 	FILE* logfile = get_logfile();
-	fprintf(logfile, "Disconnecting from PA...\n");
-	fflush(logfile);
-	quit_mainloop(mainloop, 0);
-	pa_mainloop_free(mainloop);
-	fprintf(logfile, "Disconnected from PA!\n");
+	if (*mainloop != NULL) {
+		fprintf(logfile, "Disconnecting PA Mainloop...\n");
+		fflush(logfile);
+		quit_mainloop(*mainloop, 0);
+		pa_mainloop_free(*mainloop);
+		*mainloop = NULL;
+		fprintf(logfile, "Disconnected PA Mainloop!\n");
+	} else {
+		fprintf(logfile, "Cannot dicsonnect. PA Mainloop was NULL!\n");
+	}
 }
 
 
@@ -558,13 +572,13 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
   memset(output_devices, 0, sizeof(pa_device_t) * DEVICE_MAX);
 
   // Define our pulse audio loop and connection variables
-  pa_session_t session;
+	pa_session_t session = {NULL, NULL, NULL};
 	get_pa_context("sink-list", &session);
 
 	pa_context_connect(session.context, NULL, 0 , NULL);
 	perform_operation(&session, get_sink_list, output_devices);
-	pa_disconnect_context(session.context);
-	pa_disconnect(session.mainloop);
+	pa_disconnect_context(&session.context);
+	pa_disconnect(&session.mainloop);
 
 
 	int dev_count = 0;
@@ -597,7 +611,7 @@ int record_device(pa_device_t device, record_stream_data_t **stream_read_data) {
     fprintf(logfile, "Recording device: %s\n", device.name);
 
     int mainloop_retval = 0;
-    pa_session_t session;
+    pa_session_t session = {NULL, NULL, NULL};
     get_pa_context("visualiser-pcm-recording", &session);
 
     pa_context_connect(session.context, NULL, 0, NULL);
@@ -616,10 +630,9 @@ int record_device(pa_device_t device, record_stream_data_t **stream_read_data) {
         //(*buffer_size) = 0;
     }
 
-    // why does this hang the thread?
-    //pa_context_disconnect(pa_ctx);
-    pa_disconnect_context(&session.context);
-    pa_disconnect(session.mainloop);
+    // Segfaulting
+		//pa_disconnect_context(&session.context);
+		pa_disconnect(&session.mainloop);
     fflush(logfile);
     return 0;
 }
