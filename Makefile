@@ -1,5 +1,5 @@
 .PHONY: test
-compile: purses.out
+compile:
 	gcc -g3 -Wall -lm src/*.c -l ncurses -l pulse -I. -o purses.out
 
 test:
