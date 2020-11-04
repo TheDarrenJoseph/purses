@@ -1,4 +1,7 @@
 .PHONY: test
+
+all: compile test
+
 compile:
 	gcc -g3 -Wall -lm src/*.c -l ncurses -l pulse -I. -o purses.out
 
