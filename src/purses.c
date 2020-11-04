@@ -14,11 +14,11 @@ void print_devicelist(pa_device_t* devices, int size) {
 	int ctr=1;
 	int found=0;
 	for (int i=0; i < size; i++) {
-		
+
 		pa_device_t device = devices[i];
 		//int index = device.index;
 		char* description = device.description;
-		
+
 		if (device.initialized) {
 			fprintf(logfile, "=== Device %d, %d ===\n", i+1, device.index);
 			fprintf(logfile, "Initialised: %d\n", device.initialized);
@@ -27,11 +27,11 @@ void print_devicelist(pa_device_t* devices, int size) {
 			fprintf(logfile, "Name: %s\n", device.name);
 			fprintf(logfile, "\n");
 			found = 1;
-		} 
+		}
 		ctr++;
 	}
 
-	if (!found) printw("No initialised devices found\n");
+	if (!found) fprintf(logfile,"No initialised devices found\n");
 
 }
 
@@ -52,16 +52,16 @@ int main(void) {
 	// init curses
 	initscr();
 	start_color();
-		
+
 	WINDOW* mainwin;
 	mainwin = newwin(80,80,1,0);
-	
+
 	// Do stuff
 	fprintf(logfile, "===PulseAudio ncurses Visualiser===\n");
 	printw(mainwin, "Loading sinks...\n");
 	refresh();
-	
-	for(int i=0; i<500; i++) {
+
+	for(int i=0; i<3; i++) {
 		// Get devices
 		// This is where we'll store the output device list
 		pa_device_t output_devicelist[16];
@@ -69,7 +69,7 @@ int main(void) {
 		int count = 0;
 		int dev_stat = get_devices(output_devicelist, &count);
 		if (dev_stat == 0) print_devicelist(output_devicelist, 16);
-		
+
 		pa_device_t main_device = output_devicelist[0];
 		record_stream_data_t* stream_read_data = 0;
 		record_device(main_device, &stream_read_data);
@@ -77,7 +77,7 @@ int main(void) {
 		fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
 
 		//write_to_file(stream_read_data, "record.bin");
-		
+
 		//record_stream_data_t* file_read_data = 0;
 		//init_record_data(&file_read_data);
 		//read_from_file(file_read_data, "record.bin");
@@ -94,13 +94,13 @@ int main(void) {
 		ct_fft(input_set, output_set);
 		nyquist_filter(output_set, streamed_data_size);
 		set_magnitude(output_set, streamed_data_size);
-		//printf("=== Result Data ===\n");
-		//fprint_data(logfile, output_set);
-		
+		printf("=== Result Data ===\n");
+		fprint_data(logfile, output_set);
+
 		WINDOW* vis_win;
 		vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
 		draw_visualiser(vis_win, output_set);
-		
+
 		fprintf(logfile, "Iteration %d\n", i);
 		mvwprintw(vis_win, 0, 0, "%d", i);
 		//wrefresh(mainwin);
@@ -113,7 +113,7 @@ int main(void) {
 		//getch();
 		//sleep(5000);
 	}
-	
+
 	delwin(mainwin);
 	endwin();
 	close_logfile();

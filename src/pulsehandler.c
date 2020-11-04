@@ -171,12 +171,12 @@ void pa_disconnect_context(pa_context* pa_ctx) {
 	fprintf(logfile, "Disconnected PA Context!\n");
 }
 
-void pa_disconnect(pa_mainloop** mainloop) {
+void pa_disconnect(pa_mainloop* mainloop) {
 	FILE* logfile = get_logfile();
 	fprintf(logfile, "Disconnecting from PA...\n");
 	fflush(logfile);
-	quit_mainloop(*mainloop, 0);
-	pa_mainloop_free(*mainloop);
+	quit_mainloop(mainloop, 0);
+	pa_mainloop_free(mainloop);
 	fprintf(logfile, "Disconnected from PA!\n");
 }
 
@@ -242,7 +242,7 @@ int await_stream_ready(pa_session_t* session, pa_stream* stream) {
 	for (int i=0; i < MAX_ITERATIONS; i++) {
 		switch (stream_state) {
 			case NOT_READY:
-				pa_mainloop_iterate(session, 1, NULL);
+				pa_mainloop_iterate(session -> mainloop, 1, NULL);
 				break;
 			case READY:
 				fprintf(logfile, "PA Stream ready.\n");
@@ -558,13 +558,13 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
   memset(output_devices, 0, sizeof(pa_device_t) * DEVICE_MAX);
 
   // Define our pulse audio loop and connection variables
-  pa_session_t* session = 0;
-	get_pa_context("sink-list", session);
+  pa_session_t session;
+	get_pa_context("sink-list", &session);
 
-	pa_context_connect(session -> context, NULL, 0 , NULL);
-	perform_operation(session, get_sink_list, output_devices);
-	pa_disconnect_context(session -> context);
-	pa_disconnect(session -> mainloop);
+	pa_context_connect(session.context, NULL, 0 , NULL);
+	perform_operation(&session, get_sink_list, output_devices);
+	pa_disconnect_context(session.context);
+	pa_disconnect(session.mainloop);
 
 
 	int dev_count = 0;
@@ -597,13 +597,13 @@ int record_device(pa_device_t device, record_stream_data_t **stream_read_data) {
     fprintf(logfile, "Recording device: %s\n", device.name);
 
     int mainloop_retval = 0;
-    pa_session_t *session;
-    get_pa_context("visualiser-pcm-recording", session);
+    pa_session_t session;
+    get_pa_context("visualiser-pcm-recording", &session);
 
-    pa_context_connect(session->context, NULL, 0, NULL);
+    pa_context_connect(session.context, NULL, 0, NULL);
     init_record_data(stream_read_data);
 
-    int read_stat = perform_read(device.monitor_source_name, device.index, session, (*stream_read_data),
+    int read_stat = perform_read(device.monitor_source_name, device.index, &session, (*stream_read_data),
                                  &mainloop_retval);
 
     if (read_stat == 0) {
@@ -618,8 +618,8 @@ int record_device(pa_device_t device, record_stream_data_t **stream_read_data) {
 
     // why does this hang the thread?
     //pa_context_disconnect(pa_ctx);
-    pa_disconnect_context(session -> context);
-    pa_disconnect(session -> mainloop);
+    pa_disconnect_context(&session.context);
+    pa_disconnect(session.mainloop);
     fflush(logfile);
     return 0;
 }
