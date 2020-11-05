@@ -30,17 +30,17 @@ typedef struct pa_device {
 static const char* PA_STATE_LOOKUP[5] = {"NOT_READY", "READY", "ERROR", "TERMINATED", "UNKOWN" };
 
 // Shared state for operations/contexts/streams, etc
-typedef enum pa_state { 
+typedef enum pa_state {
 	// Typically need to iterate the mainloop/await readyness here
 	NOT_READY,
 	// When we perform our actions upong the op/context/stream, etc
-	READY, 
+	READY,
 	// General error category
-	ERROR, 
+	ERROR,
 	// Point of return
-	TERMINATED, 
+	TERMINATED,
 	// For anything not enumerated/lib changes
-	UNKOWN 
+	UNKOWN
 } pa_state_t;
 
 typedef struct pa_session {
@@ -54,21 +54,23 @@ void state_cb(pa_context* context, void* userdata);
 
 void print_devicelist(pa_device_t* devices, int size);
 
-void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, 
+void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info,
 int eol, void* userdata);
 
 int perform_operation(pa_session_t* session,
 pa_operation* (*callback) (pa_context* pa_ctx, void* cb_userdata), void* userdata);
 
-int setup_record_stream(const char* device_name, int sink_idx, 
+int setup_record_stream(const char* device_name, int sink_idx,
 pa_session_t* session, pa_stream** record_stream,
 enum pa_state* stream_state, record_stream_data_t* stream_read_data);
 
 int perform_read(const char* device_name, int sink_idx, pa_session_t* session, record_stream_data_t* stream_read_data, int* mainloop_retval );
 
+pa_session_t build_session(char* context_name);
+
 int get_sinklist(pa_device_t* output_devices, int* count);
 
 void init_record_data(record_stream_data_t** stream_read_data);
 
-int record_device(pa_device_t device, 
+int record_device(pa_device_t device,
 record_stream_data_t** stream_read_data);

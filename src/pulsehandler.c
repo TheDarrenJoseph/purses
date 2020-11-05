@@ -194,12 +194,13 @@ void pa_disconnect(pa_mainloop** mainloop) {
 	}
 }
 
-
-void get_pa_context(char* context_name, pa_session_t* session) {
-    // Define our pulse audio loop and connection variables
-    session -> mainloop = pa_mainloop_new();
-    session -> mainloop_api = pa_mainloop_get_api(session -> mainloop);
-    session -> context = pa_context_new(session -> mainloop_api, context_name);
+pa_session_t build_session(char* context_name) {
+	pa_session_t session = {NULL, NULL, NULL};
+	// Define our pulse audio loop and connection variables
+	session.mainloop = pa_mainloop_new();
+	session.mainloop_api = pa_mainloop_get_api(session.mainloop);
+	session.context = pa_context_new(session.mainloop_api, context_name);
+	return session;
 }
 
 pa_operation* get_sink_list(pa_context* pa_ctx, void* userdata) {
@@ -572,8 +573,7 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
   memset(output_devices, 0, sizeof(pa_device_t) * DEVICE_MAX);
 
   // Define our pulse audio loop and connection variables
-	pa_session_t session = {NULL, NULL, NULL};
-	get_pa_context("sink-list", &session);
+	pa_session_t session = build_session("sink-list");
 
 	pa_context_connect(session.context, NULL, 0 , NULL);
 	perform_operation(&session, get_sink_list, output_devices);
@@ -611,8 +611,7 @@ int record_device(pa_device_t device, record_stream_data_t **stream_read_data) {
     fprintf(logfile, "Recording device: %s\n", device.name);
 
     int mainloop_retval = 0;
-    pa_session_t session = {NULL, NULL, NULL};
-    get_pa_context("visualiser-pcm-recording", &session);
+		pa_session_t session = build_session("visualiser-pcm-recording");
 
     pa_context_connect(session.context, NULL, 0, NULL);
     init_record_data(stream_read_data);
