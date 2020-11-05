@@ -84,19 +84,11 @@ int main(void) {
 	// init curses
 	initscr();
 	start_color();
-
-	WINDOW* mainwin;
-	mainwin = newwin(80,80,1,0);
-
-	fprintf(logfile, "===PulseAudio ncurses Visualiser===\n");
-	printw(mainwin, "Loading sinks...\n");
 	refresh();
 
-	WINDOW* vis_win;
-	vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
+	WINDOW* vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
 	pa_device_t device = get_main_device();
-
-	for(int i=0; i<3; i++) {
+	for(int i=0; i<2; i++) {
 		record_stream_data_t* stream_read_data = record_samples_from_device(device);
 		if (stream_read_data != NULL) {
 			int streamed_data_size = stream_read_data -> data_size;
@@ -110,11 +102,10 @@ int main(void) {
 			free(stream_read_data);
 			//fflush(logfile);
 			//refresh();
-
 			ct_fft(input_set, output_set);
 			nyquist_filter(output_set, streamed_data_size);
 			set_magnitude(output_set, streamed_data_size);
-			printf("=== Result Data ===\n");
+			fprintf(logfile, "=== Result Data ===\n");
 			fprint_data(logfile, output_set);
 			draw_visualiser(vis_win, output_set);
 		} else {
@@ -129,12 +120,12 @@ int main(void) {
 		// Let things catch up
 		refresh();
 		fflush(logfile);
-		//wgetch(vis_win);
+		wgetch(vis_win);
 		//getch();
 		//sleep(5000);
 	}
 
-	delwin(mainwin);
+	delwin(vis_win);
 	endwin();
 	close_logfile();
 	// exit with success status code

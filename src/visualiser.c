@@ -9,7 +9,7 @@ int calculate_height(complex_wrapper_t wrapper) {
 	int decibels = wrapper.decibels;
 	if (decibels > 0) {
 		return wrapper.decibels/10;
-	} 
+	}
 	return 0;
 }
 
@@ -36,11 +36,11 @@ void draw_y_labels(WINDOW* win) {
 
 void update_graph(WINDOW* win, complex_set_t* output_set) {
 	complex_wrapper_t* complex_vals = output_set -> complex_numbers;
-	draw_bar(win, 5, calculate_height(complex_vals[1]),  "43Hz "); // 1 
+	draw_bar(win, 5, calculate_height(complex_vals[1]),  "43Hz "); // 1
 	draw_bar(win, 11, calculate_height(complex_vals[3]),  "129Hz"); // 3
 	draw_bar(win, 16, calculate_height(complex_vals[7]), "301Hz"); // 7
 	draw_bar(win, 21, calculate_height(complex_vals[14]), "600Hz"); // 14
-	draw_bar(win, 26, calculate_height(complex_vals[24]), "1kHz "); // 24 
+	draw_bar(win, 26, calculate_height(complex_vals[24]), "1kHz "); // 24
 	draw_bar(win, 31, calculate_height(complex_vals[47]), "2kHz "); // 47
 	draw_bar(win, 36, calculate_height(complex_vals[94]), "4kHz "); // 94
 	draw_bar(win, 41, calculate_height(complex_vals[140]), "6kHz "); // 140
@@ -48,11 +48,15 @@ void update_graph(WINDOW* win, complex_set_t* output_set) {
 	draw_bar(win, 51, calculate_height(complex_vals[280]), "12kHz"); // 280
 	draw_bar(win, 57, calculate_height(complex_vals[373]), "16kHz"); // 373
 	wrefresh(win);
-} 
+}
 
 void draw_visualiser(WINDOW* win, complex_set_t* output_set) {
 	werase(win);
 	box(win, 0, 0);
 	draw_y_labels(win);
+	char* banner = "===PulseAudio ncurses Visualiser===";
+	// find the midpoint for our banner
+	int target_x = (VIS_WIDTH/2) - sizeof(banner);
+	mvwprintw(win, 0, target_x, banner);
 	update_graph(win, output_set);
 }
