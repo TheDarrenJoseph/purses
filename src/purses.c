@@ -77,10 +77,40 @@ record_stream_data_t* record_samples_from_device(pa_device_t device) {
 	}
 }
 
-int main(void) {
-	// Logfile to handle non-curses output by our handlers
+// Records some samples from the provided device
+// Performing a Cooley-Tukey FFT on the recording
+// Then drawing the visualiser graph for the results
+void perform_visualisation(pa_device_t* device, WINDOW* vis_win) {
 	FILE* logfile = get_logfile();
+	record_stream_data_t* stream_read_data = record_samples_from_device(*device);
+	if (stream_read_data != NULL) {
+		int streamed_data_size = stream_read_data -> data_size;
+		fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
 
+		complex_set_t* output_set = 0;
+		malloc_complex_set(&output_set, streamed_data_size, SAMPLE_RATE);
+		complex_set_t* input_set = 0;
+		input_set = record_stream_to_complex_set(stream_read_data);
+		// And free the struct when we're done
+		free(stream_read_data);
+		//fflush(logfile);
+		//refresh();
+		ct_fft(input_set, output_set);
+		nyquist_filter(output_set, streamed_data_size);
+		set_magnitude(output_set, streamed_data_size);
+		fprintf(logfile, "=== Result Data ===\n");
+		fprint_data(logfile, output_set);
+		draw_visualiser(vis_win, output_set);
+	} else {
+		fprintf(logfile, "Failed to record samples from device.\n");
+	}
+
+	wrefresh(vis_win);
+	refresh();
+}
+
+int main(void) {
+	FILE* logfile = get_logfile();
 	// init curses
 	initscr();
 	start_color();
@@ -89,42 +119,13 @@ int main(void) {
 	WINDOW* vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
 	pa_device_t device = get_main_device();
 	for(int i=0; i<2; i++) {
-		record_stream_data_t* stream_read_data = record_samples_from_device(device);
-		if (stream_read_data != NULL) {
-			int streamed_data_size = stream_read_data -> data_size;
-			fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
-
-			complex_set_t* output_set = 0;
-			malloc_complex_set(&output_set, streamed_data_size, SAMPLE_RATE);
-			complex_set_t* input_set = 0;
-			input_set = record_stream_to_complex_set(stream_read_data);
-			// And free the struct when we're done
-			free(stream_read_data);
-			//fflush(logfile);
-			//refresh();
-			ct_fft(input_set, output_set);
-			nyquist_filter(output_set, streamed_data_size);
-			set_magnitude(output_set, streamed_data_size);
-			fprintf(logfile, "=== Result Data ===\n");
-			fprint_data(logfile, output_set);
-			draw_visualiser(vis_win, output_set);
-		} else {
-			fprintf(logfile, "Failed to record samples from device.\n");
-		}
-
+		perform_visualisation(&device, vis_win);
 		fprintf(logfile, "Iteration %d\n", i);
 		mvwprintw(vis_win, 0, 0, "%d", i);
-		//wrefresh(mainwin);
-		wrefresh(vis_win);
-
-		// Let things catch up
-		refresh();
-		fflush(logfile);
 		wgetch(vis_win);
-		//getch();
-		//sleep(5000);
 	}
 
+	fflush(logfile);
 	delwin(vis_win);
 	endwin();
 	close_logfile();
