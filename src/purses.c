@@ -67,9 +67,9 @@ record_stream_data_t* read_stream_from_file() {
 // Records a set amount of data from the device
 // Returns a record_stream_data_t filled from the device on successful
 // Returns NULL in the event of a failure
-record_stream_data_t* record_samples_from_device(pa_device_t device) {
+record_stream_data_t* record_samples_from_device(pa_device_t device, pa_session_t* session) {
 	record_stream_data_t* stream_read_data = 0;
-	int recording_stat = record_device(device, &stream_read_data);
+	int recording_stat = record_device(device, session, &stream_read_data);
 	if (recording_stat == 0) {
 		return stream_read_data;
 	} else {
@@ -80,16 +80,16 @@ record_stream_data_t* record_samples_from_device(pa_device_t device) {
 // Records some samples from the provided device
 // Performing a Cooley-Tukey FFT on the recording
 // Then drawing the visualiser graph for the results
-void perform_visualisation(pa_device_t* device, WINDOW* vis_win) {
+void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* vis_win) {
 	FILE* logfile = get_logfile();
-	record_stream_data_t* stream_read_data = record_samples_from_device(*device);
+	record_stream_data_t* stream_read_data = record_samples_from_device(*device, session);
 	if (stream_read_data != NULL) {
 		int streamed_data_size = stream_read_data -> data_size;
 		fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
 
-		complex_set_t* output_set = 0;
+		complex_set_t* output_set = NULL;
 		malloc_complex_set(&output_set, streamed_data_size, SAMPLE_RATE);
-		complex_set_t* input_set = 0;
+		complex_set_t* input_set = NULL;
 		input_set = record_stream_to_complex_set(stream_read_data);
 		// And free the struct when we're done
 		free(stream_read_data);
@@ -118,12 +118,15 @@ int main(void) {
 
 	WINDOW* vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
 	pa_device_t device = get_main_device();
+	pa_session_t session = build_session("visualiser-pcm-recording");
 	for(int i=0; i<2; i++) {
-		perform_visualisation(&device, vis_win);
+		perform_visualisation(&device, &session, vis_win);
 		fprintf(logfile, "Iteration %d\n", i);
 		mvwprintw(vis_win, 0, 0, "%d", i);
 		wgetch(vis_win);
 	}
+
+  destroy_session(&session);
 
 	fflush(logfile);
 	delwin(vis_win);

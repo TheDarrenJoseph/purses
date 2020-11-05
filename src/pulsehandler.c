@@ -203,6 +203,11 @@ pa_session_t build_session(char* context_name) {
 	return session;
 }
 
+void destroy_session(pa_session_t* session) {
+	//pa_disconnect_context(&session -> context);
+	pa_disconnect(&session -> mainloop);
+}
+
 pa_operation* get_sink_list(pa_context* pa_ctx, void* userdata) {
 	return pa_context_get_sink_info_list(pa_ctx, pa_sinklist_cb, userdata);
 }
@@ -606,17 +611,17 @@ void init_record_data(record_stream_data_t** stream_read_data) {
 	}
 }
 
-int record_device(pa_device_t device, record_stream_data_t **stream_read_data) {
+int record_device(pa_device_t device, pa_session_t* session, record_stream_data_t** stream_read_data) {
     FILE *logfile = get_logfile();
     fprintf(logfile, "Recording device: %s\n", device.name);
 
     int mainloop_retval = 0;
-		pa_session_t session = build_session("visualiser-pcm-recording");
+		//pa_session_t session = build_session("visualiser-pcm-recording");
 
-    pa_context_connect(session.context, NULL, 0, NULL);
+    pa_context_connect(session -> context, NULL, 0, NULL);
     init_record_data(stream_read_data);
 
-    int read_stat = perform_read(device.monitor_source_name, device.index, &session, (*stream_read_data),
+    int read_stat = perform_read(device.monitor_source_name, device.index, session, (*stream_read_data),
                                  &mainloop_retval);
 
     if (read_stat == 0) {
@@ -629,9 +634,6 @@ int record_device(pa_device_t device, record_stream_data_t **stream_read_data) {
         //(*buffer_size) = 0;
     }
 
-    // Segfaulting
-		//pa_disconnect_context(&session.context);
-		pa_disconnect(&session.mainloop);
     fflush(logfile);
     return 0;
 }
