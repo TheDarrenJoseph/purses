@@ -623,9 +623,9 @@ int record_device(pa_device_t device, record_stream_data_t **stream_read_data) {
         fprintf(logfile, "Recording complete.\n");
         //(*buffer_size) = BUFFER_BYTE_COUNT;
         // Display our data?
-
     } else {
         fprintf(logfile, "Recording failed!\n");
+				return 1;
         //(*buffer_size) = 0;
     }
 
