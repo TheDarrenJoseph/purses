@@ -8,7 +8,7 @@
 #include <math.h>
 #include <pulse/pulseaudio.h>
 #include <pa_state.h>
-#include <pa_shared.h>
+#include <pa_session.h>
 #include <shared.h>
 
 // Signed 16 integer bit PCM, little endian

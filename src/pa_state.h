@@ -1,15 +1,15 @@
 #pragma once
+// A set of functions and data relating to tracking the state of various PulseAudio components (Contexts, Streams, etc)
 
 #include <stdio.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
 #include <pulse/pulseaudio.h>
 
 #include <shared.h>
-#include <pa_shared.h>
+#include <pa_session.h>
 
 static const char* PA_STATE_LOOKUP[5] = {"NOT_READY", "READY", "ERROR", "TERMINATED", "UNKOWN" };
 

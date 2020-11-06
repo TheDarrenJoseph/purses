@@ -128,7 +128,7 @@ int main(void) {
 		wgetch(vis_win);
 	}
 
-  destroy_session(&session);
+  destroy_session(session);
 
 	fflush(logfile);
 	delwin(vis_win);
