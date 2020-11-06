@@ -95,6 +95,7 @@ complex_set_t* malloc_complex_set(complex_set_t** set, int sample_count, int sam
 		(*set)  = (complex_set_t*) malloc(sizeof(complex_set_t));
 		(*set)  -> data_size = sample_count;
 		(*set)  -> complex_numbers = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * sample_count);
+		(*set)  -> sample_rate = sample_rate;
 		return (*set);
 }
 

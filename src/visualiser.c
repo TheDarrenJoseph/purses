@@ -58,5 +58,6 @@ void draw_visualiser(WINDOW* win, complex_set_t* output_set) {
 	// find the midpoint for our banner
 	int target_x = (VIS_WIDTH/2) - sizeof(banner);
 	mvwprintw(win, 0, target_x, banner);
+	mvwprintw(win, VIS_HEIGHT-1, target_x, "%dSamples@%dHz", output_set -> data_size, output_set -> sample_rate);
 	update_graph(win, output_set);
 }
