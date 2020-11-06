@@ -1,4 +1,4 @@
-#include <pa_session.h>
+#include <pulseaudio/pa_session.h>
 
 pa_session_t build_session(char* context_name) {
 	pa_session_t session = {NULL, NULL, NULL};

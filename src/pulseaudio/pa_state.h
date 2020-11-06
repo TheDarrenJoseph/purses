@@ -9,7 +9,7 @@
 #include <pulse/pulseaudio.h>
 
 #include <shared.h>
-#include <pa_session.h>
+#include <pulseaudio/pa_session.h>
 
 static const char* PA_STATE_LOOKUP[5] = {"NOT_READY", "READY", "ERROR", "TERMINATED", "UNKOWN" };
 

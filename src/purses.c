@@ -4,7 +4,7 @@
 #include <pulse/pulseaudio.h>
 #include <ncurses.h>
 
-#include <pulsehandler.h>
+#include <pulseaudio/pulsehandler.h>
 #include <shared.h>
 #include <processing.h>
 #include <visualiser.h>

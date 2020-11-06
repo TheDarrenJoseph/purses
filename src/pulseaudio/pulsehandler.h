@@ -6,10 +6,11 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
-#include <pulse/pulseaudio.h>
-#include <pa_state.h>
-#include <pa_session.h>
+
 #include <shared.h>
+#include <pulse/pulseaudio.h>
+#include <pulseaudio/pa_state.h>
+#include <pulseaudio/pa_session.h>
 
 // Signed 16 integer bit PCM, little endian
 // Single channel (mono) to ease processing

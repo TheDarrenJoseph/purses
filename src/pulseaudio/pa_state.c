@@ -1,4 +1,4 @@
-#include <pa_state.h>
+#include <pulseaudio/pa_state.h>
 
 // Handles context state change and sets userdata to our more generic pa_state
 void pa_context_state_cb(struct pa_context* context, void* userdata) {
