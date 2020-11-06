@@ -121,9 +121,6 @@ enum pa_state check_pa_op( pa_operation* pa_op) {
 	}
 }
 
-// pa_mainloop will call this function when it's ready to tell us about a sink.
-// Since we're not threading, there's no need for mutexes on the devicelist
-// structure
 void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void* userdata) {
 	FILE* logfile = get_logfile();
     pa_device_t* pa_devicelist = userdata;
@@ -136,8 +133,7 @@ void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void*
     // We know we've allocated 16 slots to hold devices.  Loop through our
     // structure and find the first one that's "uninitialized."  Copy the
     // contents into it and we're done.  If we receive more than 16 devices,
-    // they're going to get dropped.  You could make this dynamically allocate
-    // space for the device list, but this is a simple example.
+    // they're going to get dropped.
     for (int i = 0; i < DEVICE_MAX; i++) {
 			pa_device_t device = pa_devicelist[i];
 			// This is a guard against overwriting fetched devices
@@ -172,7 +168,6 @@ void pa_disconnect_context(pa_context** pa_ctx) {
 			fprintf(logfile, "Disconnecting PA Context...\n");
 			pa_context_disconnect(*pa_ctx);
 			*pa_ctx = NULL;
-			//pa_context_unref(*pa_ctx);
 			fprintf(logfile, "Disconnected PA Context!\n");
 		}
 	} else {
@@ -455,15 +450,13 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 					fprintf(logfile, "Error while disconnecting recording stream!\n");
 				}
 				BUFFER_FILLED = true;
-			} else {
-				if (nbytes > buffer_nbytes) {
-					fprintf(logfile, "Waiting for stream buffer to fill: %ld/%ld.\n", nbytes, BUFFER_BYTE_COUNT);
-					buffer_nbytes = nbytes;
-				}
+			} else if (nbytes > buffer_nbytes) {
+				fprintf(logfile, "Waiting for stream buffer to fill: %ld/%ld.\n", nbytes, BUFFER_BYTE_COUNT);
+				buffer_nbytes = nbytes;
 			}
 		}
 	} else {
-		fprintf(logfile, "No data to read from stream!...\n");
+		fprintf(logfile, "No data to read from stream!\n");
 	}
 
 	fflush(logfile);
@@ -553,12 +546,19 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session, r
 			pa_stream_cork(record_stream, 0, pa_stream_success_cb, session -> context);
 			pa_mainloop_iterate(session -> mainloop, 1, mainloop_retval);
 		}
-	}
 
-	fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
-	fflush(logfile);
-	await_stream_termination(session, record_stream, mainloop_retval);
-	//fflush(logfile);
+		fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
+		fflush(logfile);
+		await_stream_termination(session, record_stream, mainloop_retval);
+		//fflush(logfile);
+	} else {
+		if (!pa_stream_is_corked(record_stream)) {
+			fprintf(logfile, "Corking stream... \n");
+			// Resume the stream now it's ready
+			pa_stream_cork(record_stream, 1, pa_stream_success_cb, session -> context);
+			pa_mainloop_iterate(session -> mainloop, 1, mainloop_retval);
+		}
+	}
 
 	// Success / Failure states
 	if (mainloop_retval >= 0) {
@@ -616,8 +616,6 @@ int record_device(pa_device_t device, pa_session_t* session, record_stream_data_
     fprintf(logfile, "Recording device: %s\n", device.name);
 
     int mainloop_retval = 0;
-		//pa_session_t session = build_session("visualiser-pcm-recording");
-
     pa_context_connect(session -> context, NULL, 0, NULL);
     init_record_data(stream_read_data);
 
@@ -626,14 +624,11 @@ int record_device(pa_device_t device, pa_session_t* session, record_stream_data_
 
     if (read_stat == 0) {
         fprintf(logfile, "Recording complete.\n");
-        //(*buffer_size) = BUFFER_BYTE_COUNT;
-        // Display our data?
+				fflush(logfile);
+				return 0;
     } else {
         fprintf(logfile, "Recording failed!\n");
+				fflush(logfile);
 				return 1;
-        //(*buffer_size) = 0;
     }
-
-    fflush(logfile);
-    return 0;
 }

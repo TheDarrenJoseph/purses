@@ -83,11 +83,11 @@ record_stream_data_t* record_samples_from_device(pa_device_t device, pa_session_
 void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* vis_win) {
 	FILE* logfile = get_logfile();
 	record_stream_data_t* stream_read_data = record_samples_from_device(*device, session);
+
+	complex_set_t* output_set = NULL;
 	if (stream_read_data != NULL) {
 		int streamed_data_size = stream_read_data -> data_size;
 		fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
-
-		complex_set_t* output_set = NULL;
 		malloc_complex_set(&output_set, streamed_data_size, SAMPLE_RATE);
 		complex_set_t* input_set = NULL;
 		input_set = record_stream_to_complex_set(stream_read_data);
@@ -100,11 +100,12 @@ void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* v
 		set_magnitude(output_set, streamed_data_size);
 		fprintf(logfile, "=== Result Data ===\n");
 		fprint_data(logfile, output_set);
-		draw_visualiser(vis_win, output_set);
 	} else {
+		// Zero the output set so we can display nothing
+		malloc_complex_set(&output_set, 0, SAMPLE_RATE);
 		fprintf(logfile, "Failed to record samples from device.\n");
 	}
-
+	draw_visualiser(vis_win, output_set);
 	wrefresh(vis_win);
 	refresh();
 }
@@ -119,10 +120,11 @@ int main(void) {
 	WINDOW* vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
 	pa_device_t device = get_main_device();
 	pa_session_t session = build_session("visualiser-pcm-recording");
-	for(int i=0; i<2; i++) {
+	for(int i=0; i<5; i++) {
+		fprintf(logfile, "=== Performing visualisation: %d\n", i);
 		perform_visualisation(&device, &session, vis_win);
-		fprintf(logfile, "Iteration %d\n", i);
 		mvwprintw(vis_win, 0, 0, "%d", i);
+		fflush(logfile);
 		wgetch(vis_win);
 	}
 

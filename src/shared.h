@@ -11,11 +11,12 @@
 #define ANSI_GREEN "[0;32m"
 #define ESC "\033"
 
-#define MAX_ITERATIONS 50000
+#define MAX_ITERATIONS 500
 #define DEVICE_MAX 16
 
-// 44100 Hz sample rate
+// 44100Hz sample rate
 #define SAMPLE_RATE 44100
+// 43Hz per sample bin
 #define NUM_SAMPLES 1024
 
 static const size_t BUFFER_BYTE_COUNT = NUM_SAMPLES;
@@ -34,7 +35,7 @@ typedef struct complex_wrapper {
   double decibels;
 } complex_wrapper_t;
 
-// For use with native complex.h 
+// For use with native complex.h
 typedef struct complex_set {
   complex_wrapper_t* complex_numbers;
   // Number of samples in complex_numbers
