@@ -39,8 +39,6 @@ enum pa_state* stream_state, record_stream_data_t* stream_read_data);
 
 int perform_read(const char* device_name, int sink_idx, pa_session_t* session, record_stream_data_t* stream_read_data, int* mainloop_retval );
 
-pa_session_t build_session(char* context_name);
-
 int get_sinklist(pa_device_t* output_devices, int* count);
 
 void init_record_data(record_stream_data_t** stream_read_data);
