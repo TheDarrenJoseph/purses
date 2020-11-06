@@ -7,7 +7,7 @@
 #include <string.h>
 #include <math.h>
 #include <pulse/pulseaudio.h>
-
+#include <pa_state.h>
 #include <shared.h>
 
 // Signed 16 integer bit PCM, little endian
@@ -27,22 +27,6 @@ typedef struct pa_device {
 	char description[256];
 } pa_device_t;
 
-static const char* PA_STATE_LOOKUP[5] = {"NOT_READY", "READY", "ERROR", "TERMINATED", "UNKOWN" };
-
-// Shared state for operations/contexts/streams, etc
-typedef enum pa_state {
-	// Typically need to iterate the mainloop/await readyness here
-	NOT_READY,
-	// When we perform our actions upong the op/context/stream, etc
-	READY,
-	// General error category
-	ERROR,
-	// Point of return
-	TERMINATED,
-	// For anything not enumerated/lib changes
-	UNKOWN
-} pa_state_t;
-
 typedef struct pa_session {
   // Define our pulse audio loop and connection variables
   pa_mainloop* mainloop;
@@ -50,15 +34,10 @@ typedef struct pa_session {
   pa_context* context;
 } pa_session_t;
 
-void state_cb(pa_context* context, void* userdata);
-
 void print_devicelist(pa_device_t* devices, int size);
+void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void* userdata);
 
-void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info,
-int eol, void* userdata);
-
-int perform_operation(pa_session_t* session,
-pa_operation* (*callback) (pa_context* pa_ctx, void* cb_userdata), void* userdata);
+int perform_operation(pa_session_t* session, pa_operation* (*callback) (pa_context* pa_ctx, void* cb_userdata), void* userdata);
 
 int setup_record_stream(const char* device_name, int sink_idx,
 pa_session_t* session, pa_stream** record_stream,
