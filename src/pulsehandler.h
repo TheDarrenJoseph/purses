@@ -8,6 +8,7 @@
 #include <math.h>
 #include <pulse/pulseaudio.h>
 #include <pa_state.h>
+#include <pa_shared.h>
 #include <shared.h>
 
 // Signed 16 integer bit PCM, little endian
@@ -26,13 +27,6 @@ typedef struct pa_device {
 	uint32_t index;
 	char description[256];
 } pa_device_t;
-
-typedef struct pa_session {
-  // Define our pulse audio loop and connection variables
-  pa_mainloop* mainloop;
-	pa_mainloop_api* mainloop_api;
-  pa_context* context;
-} pa_session_t;
 
 void print_devicelist(pa_device_t* devices, int size);
 void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void* userdata);
