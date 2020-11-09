@@ -21,9 +21,7 @@ void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void*
     pa_device_t* pa_devicelist = userdata;
 
     // If eol is set to a positive number, you're at the end of the list
-    if (eol > 0) {
-        return;
-    }
+    if (eol > 0) return;
 
     // We know we've allocated 16 slots to hold devices.  Loop through our
     // structure and find the first one that's "uninitialized."  Copy the
@@ -40,10 +38,7 @@ void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void*
 					strncpy(device.description, sink_info -> description, 255);
 					device.initialized = 1;
 					fprintf(logfile, "Found device %d, Index %d, Name: %s\n", i, device.index, device.name);
-
-					if (device.initialized) {
-						fprintf(logfile, "Initialized device %d\n", i);
-					}
+					if (device.initialized)	fprintf(logfile, "Initialized device %d\n", i);
 					pa_devicelist[i] = device;
 					return;
 				}
@@ -81,9 +76,8 @@ int perform_operation(pa_session_t* session, pa_operation* (*callback) (pa_conte
 			if (await_op_stat != 0) {
 				fprintf(logfile, "Awaiting PA Operation returned failure code: %d\n", await_stat);
 				return 1;
-			} else {
-				return 0;
 			}
+			return await_op_stat;
 		}
 	}
 	fprintf(logfile, "Timed out while performing an operation!\n");
@@ -105,6 +99,25 @@ int read_data(const void* data, record_stream_data_t* data_output, long int buff
 	}
 	fprintf(logfile, "Read %ld bytes from the stream.\n", BUFFER_BYTE_COUNT);
 	return 0;
+}
+
+int disconnect_stream(pa_stream* stream) {
+	FILE* logfile = get_logfile();
+	pa_stream_state_t pa_stream_state = pa_stream_get_state(stream);
+
+	// We should only really disconnect a stream if it's not failed or disconnected
+  if (pa_stream_state == PA_CONTEXT_FAILED || pa_stream_state == PA_CONTEXT_TERMINATED) {
+		fprintf(logfile, "Will not disconnect stream, stream is already failed/terminated with state code: %d!\n", pa_stream_state);
+		return 1;
+	} else {
+		int disconnect_stat = pa_stream_disconnect(stream);
+		if (disconnect_stat == 0) {
+			fprintf(logfile, "Stream disconnected!\n");
+		} else {
+			fprintf(logfile, "Error while disconnecting stream, disconnect failed with code: %d!\n", disconnect_stat);
+		}
+		return disconnect_stat;
+	}
 }
 
 // Waits until the read stream is filled to BUFFER_BYTE_COUNT
@@ -151,12 +164,7 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 
 				// Disconnect / Hopefully terminate the stream
 				fprintf(logfile, "Read total of %ld / %ld bytes from the stream. Disconnecting..\n", read_bytes, BUFFER_BYTE_COUNT);
-				int disconnect_stat = pa_stream_disconnect(read_stream);
-				if (disconnect_stat == 0) {
-					fprintf(logfile, "Disconnected!\n");
-				} else {
-					fprintf(logfile, "Error while disconnecting recording stream!\n");
-				}
+				disconnect_stream(read_stream);
 				BUFFER_FILLED = true;
 			} else if (nbytes > buffer_nbytes) {
 				fprintf(logfile, "Waiting for stream buffer to fill: %ld/%ld.\n", nbytes, BUFFER_BYTE_COUNT);
@@ -314,7 +322,7 @@ void init_record_data(record_stream_data_t** stream_read_data) {
 int record_device(pa_device_t device, pa_session_t* session, record_stream_data_t** stream_read_data) {
     FILE *logfile = get_logfile();
     fprintf(logfile, "Recording device: %s\n", device.name);
-
+		fflush(logfile);
     int mainloop_retval = 0;
     pa_context_connect(session -> context, NULL, 0, NULL);
     init_record_data(stream_read_data);

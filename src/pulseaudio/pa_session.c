@@ -15,10 +15,13 @@ void disconnect_context(pa_context** pa_ctx) {
 	if (pa_ctx != NULL && (*pa_ctx) != NULL) {
 		pa_context_state_t pa_con_state = pa_context_get_state(*pa_ctx);
 		fprintf(logfile, "Disconnecting PA Context with state: %d\n", pa_con_state);
-	  if (pa_con_state == PA_CONTEXT_TERMINATED) {
+		if (pa_con_state == PA_CONTEXT_FAILED) {
+			fprintf(logfile, "PA Context was already failed or disconnected.\n");
+		} else if (pa_con_state == PA_CONTEXT_TERMINATED) {
 			fprintf(logfile, "PA Context was already terminated.\n");
 		} else {
 			fprintf(logfile, "Disconnecting PA Context...\n");
+			fflush(logfile);
 			pa_context_disconnect(*pa_ctx);
 			*pa_ctx = NULL;
 			fprintf(logfile, "Disconnected PA Context!\n");

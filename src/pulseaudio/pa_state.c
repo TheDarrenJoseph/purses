@@ -58,6 +58,8 @@ void pa_stream_state_cb(struct pa_stream* stream, void* userdata) {
 		// An error occurred that made the stream invalid.
 		case PA_STREAM_FAILED:
 			(*pa_stat) = ERROR;
+			fprintf(logfile, "Disconnecting failed stream..\n");
+			fflush(logfile);
 			pa_stream_disconnect(stream);
 			break;
 		// The stream has been terminated cleanly.
@@ -68,6 +70,8 @@ void pa_stream_state_cb(struct pa_stream* stream, void* userdata) {
 		// Anything else/exceptional
 		default:
 			(*pa_stat) = UNKOWN;
+			fprintf(logfile, "Disconnecting stream (unexpected state)..\n");
+			fflush(logfile);
 			pa_stream_disconnect(stream);
 			break;
 	}
@@ -99,20 +103,20 @@ int await_context_state(pa_session_t* session, pa_state_t expected_state) {
 	int pa_ready = 0;
 	pa_context_set_state_callback(session -> context, pa_context_state_cb, &pa_ready);
 	fprintf(logfile, "Awaiting context state: %s...\n", PA_STATE_LOOKUP[expected_state]);
+	fflush(logfile);
 	for (int i=0; i < MAX_ITERATIONS; i++) {
 		if (pa_ready == expected_state) {
 			fprintf(logfile, "Context reached expected state: %s\n", PA_STATE_LOOKUP[expected_state]);
+			fflush(logfile);
 			return 0;
+		} else {
+			fprintf(logfile, "Awaiting context state %s. PA context state is: %s\n", PA_STATE_LOOKUP[expected_state], PA_STATE_LOOKUP[pa_ready]);
+			fflush(logfile);
+			pa_mainloop_iterate(session -> mainloop, 0, NULL);
 		}
+
 		//fprintf(logfile, "PA Ready state is: %d\n", pa_ready);
 		switch (pa_ready) {
-			// We can iterate in either of these states
-			case NOT_READY:
-			case READY:
-				//	fprintf(logfile, "Awaiting context setup... (%d)\n", i);
-				// Block until we get something useful
-				pa_mainloop_iterate(session -> mainloop, 1, NULL);
-				break;
 			case ERROR:
 				fprintf(logfile, "PA context encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));
 				return 1;
