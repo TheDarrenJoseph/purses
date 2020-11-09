@@ -34,9 +34,8 @@ void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void*
 
 int perform_operation(pa_session_t* session, pa_operation* (*callback) (pa_context* pa_ctx, void* cb_userdata), void* userdata);
 
-int setup_record_stream(const char* device_name, int sink_idx,
-pa_session_t* session, pa_stream** record_stream,
-enum pa_state* stream_state, record_stream_data_t* stream_read_data);
+int connect_record_stream(pa_stream** record_stream, const char* device_name);
+pa_stream* setup_record_stream(pa_session_t* session);
 
 int perform_read(const char* device_name, int sink_idx, pa_session_t* session, record_stream_data_t* stream_read_data, int* mainloop_retval );
 

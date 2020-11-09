@@ -179,46 +179,40 @@ void pa_stream_success_cb(pa_stream *stream, int success, void *userdata) {
 	}
 }
 
-int setup_record_stream(const char* device_name, int sink_idx, pa_session_t* session, pa_stream** record_stream, enum pa_state* stream_state, record_stream_data_t* stream_read_data) {
+int connect_record_stream(pa_stream** record_stream, const char* device_name) {
 	FILE* logfile = get_logfile();
+	fprintf(logfile, "Connecting stream for device: %s\n", device_name);
+	// create pa_buffer_attr to specify stream buffer settings
+	const pa_buffer_attr buffer_attribs = {
+		// Max buffer size
+		.maxlength = (uint32_t) -1,
+		// Fragment size, this -1 will let the server choose the size
+		// with buffer
+		.fragsize = (uint32_t) -1,
+	};
+	pa_stream_flags_t stream_flags = PA_STREAM_START_CORKED;
+	int connect_stat = pa_stream_connect_record(*record_stream, device_name, &buffer_attribs, stream_flags);
+	if (connect_stat == 0) {
+		fprintf(logfile, "Opened recording stream for device: %s\n", device_name);
+	} else {
+		const char* error = pa_strerror(connect_stat);
+		fprintf(logfile, "Failed to connect recording stream for device: %s, status: %d, error: %s\n", device_name, connect_stat, error);
+		return 1;
+	}
+	return 0;
+}
 
+pa_stream* setup_record_stream(pa_session_t* session) {
+	FILE* logfile = get_logfile();
 	const pa_sample_spec * ss = &mono_ss;
 	pa_channel_map map;
 	fprintf(logfile, "Initialising record stream, sample spec: %d channel(s) @ %dHz\n", ss -> channels, ss -> rate);
 	pa_channel_map_init_mono(&map);
 
 	// pa_stream_new for PCM
-	fprintf(logfile, "Initialising PA Stream for device: %s\n", device_name);
-	(*record_stream) = pa_stream_new(session -> context, "purses record stream", ss, &map);
-
-	// This connects to the PulseAudio server to read
-	// from the device to our stream
-	int monitor_stream_stat = 0; //pa_stream_set_monitor_stream(record_stream, 0);
-	if (monitor_stream_stat == 0) {
-		fprintf(logfile, "Connecting stream for device: %s\n", device_name);
-		// create pa_buffer_attr to specify stream buffer settings
-		const pa_buffer_attr buffer_attribs = {
-			// Max buffer size
-			.maxlength = (uint32_t) -1,
-			// Fragment size, this -1 will let the server choose the size
-			// with buffer
-			.fragsize = (uint32_t) -1,
-		};
-		pa_stream_flags_t stream_flags = PA_STREAM_START_CORKED;
-		int connect_stat = pa_stream_connect_record(*record_stream, device_name, &buffer_attribs, stream_flags);
-		if (connect_stat == 0) {
-			fprintf(logfile, "Opened recording stream for device: %s\n", device_name);
-		} else {
-			const char* error = pa_strerror(connect_stat);
-			fprintf(logfile, "Failed to connect recording stream for device: %s, status: %d, error: %s\n", device_name, connect_stat, error);
-			return 1;
-		}
-		return 0;
-	} else {
-		const char* error = pa_strerror(monitor_stream_stat);
-		fprintf(logfile, "Failed to set monitor stream for recording, status: %d,  error: %s\n", monitor_stream_stat, error);
-		return 1;
-	}
+	fprintf(logfile, "Initialising PA recording Stream.\n");
+	pa_stream* record_stream = pa_stream_new(session -> context, "purses record stream", ss, &map);
+	return record_stream;
 }
 
 int perform_read(const char* device_name, int sink_idx, pa_session_t* session, record_stream_data_t* stream_read_data, int* mainloop_retval) {
@@ -231,11 +225,11 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session, r
 	}
 
 	pa_stream* record_stream = NULL;
+	record_stream = setup_record_stream(session);
 	enum pa_state stream_state = NOT_READY;
-
-	int setup_stat = setup_record_stream(device_name, sink_idx, session, &record_stream, &stream_state, stream_read_data);
-	if (setup_stat != 0) {
-		fprintf(logfile, "Record stream setup failed with return code: %d", setup_stat);
+	int connection_state = connect_record_stream(&record_stream, device_name);
+	if (connection_state = 0) {
+		fprintf(logfile, "Record stream connection failed with return code: %d", connection_state);
 		return 1;
 	}
 
