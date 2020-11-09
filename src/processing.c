@@ -4,8 +4,10 @@
  * Due to the Nyquist limit (half of the sampling rate)
  * We need to remove data samples above this frequency limit (zero them)
  * As well as double the remaining values to adjust for this
+ * In this case this means throwing away the 2nd half of the results to avoid aliasing
  **/
-void nyquist_filter(complex_set_t* x, int sample_rate) {
+void nyquist_filter(complex_set_t* x) {
+	int sample_rate = x -> sample_rate;
 	int nyquist_frequency = sample_rate / 2;
 	int data_size = x -> data_size;
 	int freq_resolution = sample_rate / data_size;
@@ -26,7 +28,8 @@ void nyquist_filter(complex_set_t* x, int sample_rate) {
 	}
 
 	// Reduce the data size available
-	x -> data_size = nyquist_frequency;
+	x -> data_size = data_size / 2;
+	x -> frequency = nyquist_frequency;
 }
 
 // Sets the magnitude and decibels for the samples
@@ -130,10 +133,10 @@ complex_set_t* record_stream_to_complex_set(record_stream_data_t* record_stream)
 	}
 
 	complex_set_t* output_set = 0;
-	output_set = build_complex_set(record_stream, size_n, SAMPLE_RATE);
+	output_set = build_complex_set(record_stream, size_n, MAX_SAMPLE_RATE);
 	fprintf(logfile, "Done converting record stream to data set.\n");
 	fprintf(logfile, "Data set size: %d\n", output_set -> data_size);
-	fprintf(logfile, "Data set sample rate: %dHz\n", SAMPLE_RATE);
+	fprintf(logfile, "Data set sample rate: %dHz\n", MAX_SAMPLE_RATE);
 
 	return output_set;
 }

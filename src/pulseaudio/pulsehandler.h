@@ -16,7 +16,7 @@
 // Single channel (mono) to ease processing
 static const pa_sample_spec mono_ss = {
 	.format = PA_SAMPLE_S16LE,
-	.rate = SAMPLE_RATE,
+	.rate = MAX_SAMPLE_RATE,
 	.channels = 1
 };
 

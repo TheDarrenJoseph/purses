@@ -15,7 +15,7 @@
 #define DEVICE_MAX 16
 
 // 44100Hz sample rate
-#define SAMPLE_RATE 44100
+#define MAX_SAMPLE_RATE 44100
 // 43Hz per sample bin
 #define NUM_SAMPLES 1024
 
@@ -23,7 +23,7 @@ static const size_t BUFFER_BYTE_COUNT = NUM_SAMPLES;
 
 typedef struct record_stream_data {
   // signed 16-bit integers, size power of 2
-  int16_t data[SAMPLE_RATE];
+  int16_t data[MAX_SAMPLE_RATE];
   int data_size;
 } record_stream_data_t;
 
@@ -42,6 +42,8 @@ typedef struct complex_set {
   int data_size;
   // sample rate in Hz
   int sample_rate;
+  // The sampling rate of the samples (to allow adjustment)
+  int frequency;
 } complex_set_t;
 
 

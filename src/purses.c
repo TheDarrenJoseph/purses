@@ -88,7 +88,7 @@ void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* v
 	if (stream_read_data != NULL) {
 		int streamed_data_size = stream_read_data -> data_size;
 		fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
-		malloc_complex_set(&output_set, streamed_data_size, SAMPLE_RATE);
+		malloc_complex_set(&output_set, streamed_data_size, MAX_SAMPLE_RATE);
 		complex_set_t* input_set = NULL;
 		input_set = record_stream_to_complex_set(stream_read_data);
 		// And free the struct when we're done
@@ -96,13 +96,13 @@ void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* v
 		//fflush(logfile);
 		//refresh();
 		ct_fft(input_set, output_set);
-		nyquist_filter(output_set, streamed_data_size);
+		nyquist_filter(output_set, MAX_SAMPLE_RATE, streamed_data_size);
 		set_magnitude(output_set, streamed_data_size);
 		fprintf(logfile, "=== Result Data ===\n");
 		fprint_data(logfile, output_set);
 	} else {
 		// Zero the output set so we can display nothing
-		malloc_complex_set(&output_set, 0, SAMPLE_RATE);
+		malloc_complex_set(&output_set, 0, MAX_SAMPLE_RATE);
 		fprintf(logfile, "Failed to record samples from device.\n");
 	}
 	draw_visualiser(vis_win, output_set);

@@ -57,14 +57,16 @@ void update_graph(WINDOW* win, complex_set_t* output_set) {
 
 	complex_wrapper_t* complex_vals = output_set -> complex_numbers;
 	int data_size = output_set -> data_size;
-	int bin_frequency = (data_size > 0) ? SAMPLE_RATE / data_size : 0;
+	int frequency = output_set -> frequency;
+	// divide by 2 to get the Nyquist freuency divided by the sample count
+	int bin_frequency = (data_size > 0) ? frequency / data_size : 0;
   // Divide the total sample count by 11 bars
 	int bin_increment =  (data_size > 0) ? data_size / 11 : 0;
 	fprintf(logfile, "%d samples.\n", data_size);
 	fprintf(logfile, "%dHz frequency per bin.\n", bin_frequency);
 	fprintf(logfile, "%d bin index increment.\n", bin_increment);
-	// From 5 to avoid window border, up to 5 + 11 bars
-	for (int i=1; i < 11; i++) {
+	// From 5 to avoid window border, up to 5 + 12 bars
+	for (int i=1; i < 12; i++) {
 		int bin_index = i*bin_increment;
 		char* label = label_frequency(bin_frequency, bin_index);
 		fprintf(logfile, "%d bin index == %s\n" , bin_index, label);
