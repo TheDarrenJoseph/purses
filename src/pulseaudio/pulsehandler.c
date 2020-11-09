@@ -326,7 +326,7 @@ int record_device(pa_device_t device, pa_session_t* session, record_stream_data_
     int mainloop_retval = 0;
     pa_context_connect(session -> context, NULL, 0, NULL);
     init_record_data(stream_read_data);
-
+		BUFFER_FILLED = false;
     int read_stat = perform_read(device.monitor_source_name, device.index, session, (*stream_read_data),
                                  &mainloop_retval);
 

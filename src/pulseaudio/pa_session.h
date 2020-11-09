@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <pulse/pulseaudio.h>
 
+#include <pulseaudio/pa_shared.h>
 #include <shared.h>
 
 static bool BUFFER_FILLED = false;
