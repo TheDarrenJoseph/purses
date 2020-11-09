@@ -40,7 +40,7 @@ void draw_bar(WINDOW* win, int start_x, int height, const char* label){
 	wattroff(win, COLOR_PAIR(1));
 }
 
-// Draw 10 decibel increments up to 420dB
+// Draw 10 decibel increments
 void draw_y_labels(WINDOW* win) {
 	// Account for the boxing of the window
 	int start_y = VIS_HEIGHT-2;
@@ -54,9 +54,9 @@ void update_graph(WINDOW* win, complex_set_t* output_set) {
 	// sF/sN (Sample Frequency/Sample Count) = bF (Hertz per bin)
 	// 44100/1024 = 43.06
 
-  int bin_frequency = SAMPLE_RATE / NUM_SAMPLES;
 	complex_wrapper_t* complex_vals = output_set -> complex_numbers;
 	int data_size = output_set -> data_size;
+	int bin_frequency = SAMPLE_RATE / data_size;
   // Divide the total sample count by 11 bars
 	int bin_increment = data_size / 11;
 	// From 5 to avoid window border, up to 5 + 11 bars
