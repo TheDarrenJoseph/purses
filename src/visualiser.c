@@ -13,6 +13,21 @@ int calculate_height(complex_wrapper_t wrapper) {
 	return 0;
 }
 
+// bin_frequency - the frequency in Hertz per sample bin
+// index - the index of the bin in question
+// Returns a descriptive string of the frequency multiplied by the index i.e "43Hz" or "16kHz"
+char* label_frequency(int bin_frequency, int bin_index) {
+	int frequency = bin_frequency * bin_index;
+	char* (output) = malloc(sizeof(char) * 6); // 6 chars max
+	// If greater than 1000 use the kilo-suffix
+	if (frequency > 1000) {
+		sprintf(output, "%dkHz", frequency / 1000);
+	} else {
+		sprintf(output, "%dHz", frequency);
+	}
+	return output;
+}
+
 void draw_bar(WINDOW* win, int start_x, int height, const char* label){
 	// Account for the boxing of the window
 	int start_y = VIS_HEIGHT-2;
@@ -35,18 +50,21 @@ void draw_y_labels(WINDOW* win) {
 }
 
 void update_graph(WINDOW* win, complex_set_t* output_set) {
+
+	// sF/sN (Sample Frequency/Sample Count) = bF (Hertz per bin)
+	// 44100/1024 = 43.06
+
+  int bin_frequency = SAMPLE_RATE / NUM_SAMPLES;
 	complex_wrapper_t* complex_vals = output_set -> complex_numbers;
-	draw_bar(win, 5, calculate_height(complex_vals[1]),  "43Hz "); // 1
-	draw_bar(win, 11, calculate_height(complex_vals[3]),  "129Hz"); // 3
-	draw_bar(win, 16, calculate_height(complex_vals[7]), "301Hz"); // 7
-	draw_bar(win, 21, calculate_height(complex_vals[14]), "600Hz"); // 14
-	draw_bar(win, 26, calculate_height(complex_vals[24]), "1kHz "); // 24
-	draw_bar(win, 31, calculate_height(complex_vals[47]), "2kHz "); // 47
-	draw_bar(win, 36, calculate_height(complex_vals[94]), "4kHz "); // 94
-	draw_bar(win, 41, calculate_height(complex_vals[140]), "6kHz "); // 140
-	draw_bar(win, 46, calculate_height(complex_vals[210]), "9kHz "); // 210
-	draw_bar(win, 51, calculate_height(complex_vals[280]), "12kHz"); // 280
-	draw_bar(win, 57, calculate_height(complex_vals[373]), "16kHz"); // 373
+	int data_size = output_set -> data_size;
+  // Divide the total sample count by 11 bars
+	int bin_increment = data_size / 11;
+	// From 5 to avoid window border, up to 5 + 11 bars
+	for (int i=1; i < 11; i++) {
+		int bin_index = i*bin_increment;
+		char* label = label_frequency(bin_frequency, bin_index);
+		draw_bar(win, i*sizeof(label), calculate_height(complex_vals[bin_index]), label);
+	}
 	wrefresh(win);
 }
 
