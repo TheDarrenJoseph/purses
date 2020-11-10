@@ -25,6 +25,7 @@ typedef struct record_stream_data {
   // signed 16-bit integers, size power of 2
   int16_t data[MAX_SAMPLE_RATE];
   int data_size;
+  bool buffer_filled;
 } record_stream_data_t;
 
 // Complex Number

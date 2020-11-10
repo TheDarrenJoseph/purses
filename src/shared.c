@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdbool.h>
 #include <shared.h>
 
 const char* LOGFILE_NAME = "purses.log";
@@ -25,16 +26,16 @@ void fprint_data(FILE* file, complex_set_t* samples) {
 	int sample_rate = samples -> sample_rate;
 	int data_size = samples -> data_size;
 	// Frequency resolution = Sampling Freq / Sample Count
-	int freq_resolution = sample_rate / data_size;	
+	int freq_resolution = sample_rate / data_size;
 	fprintf(file, "Frequency Resolution: %dHz\n", freq_resolution);
-	
+
 	double sum = 0.0;
 	for (int i=0; i<data_size; i++) {
 		double frequency = freq_resolution * i;
 		struct complex_wrapper wrapper = samples -> complex_numbers[i];
-		
+
 		complex double complex_val = wrapper.complex_number;
-		
+
 		double realval = creal(complex_val);
 		sum += realval;
 		double imval = cimag(complex_val);
@@ -54,13 +55,13 @@ void print_data(complex_set_t* samples) {
 
 void fprintln (char* format, va_list vlist) {
 	int current_len = strlen(format);
-	
+
 	// Add space for the newline char
 	char expanded[current_len+1];
 	// Copy and append the newline
 	strcat(expanded, format);
 	strcat(expanded, "\n");
-	
+
 	if (vlist != NULL) {
 		vprintf(expanded, vlist);
 	} else {
@@ -81,15 +82,15 @@ long seek_file_size(FILE* file) {
 
 	fpos_t original_file_pos;
 	fgetpos(file, &original_file_pos);
-	
+
 	fprintf(logfile, "Seeking end of file... \n");
-	
+
 	//Set position indicator to 0 from the end of the FILE*
 	fseek(file, 0, SEEK_END);
 	// Once seeked, get the position
 	long file_size = ftell(file);
 	// Reset to original pos
-	
+
 	fsetpos(file, &original_file_pos);
 	return file_size;
 }
@@ -97,7 +98,7 @@ long seek_file_size(FILE* file) {
 void write_to_file(record_stream_data_t* stream_read_data, char* filename) {
 	FILE* logfile = get_logfile();
 	FILE* outfile = fopen(filename, "w");
-	
+
 	int16_t* record_samples = stream_read_data -> data;
 	int sample_count = stream_read_data -> data_size;
 	if (sample_count > 0) {
@@ -105,8 +106,8 @@ void write_to_file(record_stream_data_t* stream_read_data, char* filename) {
 		fwrite(record_samples, sizeof(int16_t), sample_count, outfile);
 	} else {
 		printf("Given record_stream_data_t has a data_size of 0!\n");
-	}	
-	
+	}
+
 	fclose(outfile);
 
 }
@@ -130,6 +131,6 @@ void read_from_file(record_stream_data_t* stream_read_data, char* filename) {
 		int16_t sample_data = record_data[i];
 		fprintf(logfile, "index: %d, data: %d\n", i , (signed int) sample_data);
 	}
-	
+
 	fclose(outfile);
 }

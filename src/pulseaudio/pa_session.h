@@ -6,8 +6,6 @@
 #include <pulseaudio/pa_shared.h>
 #include <shared.h>
 
-static bool BUFFER_FILLED = false;
-
 typedef struct pa_session {
   // Define our pulse audio loop and connection variables
   pa_mainloop* mainloop;

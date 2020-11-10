@@ -153,6 +153,7 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 						// Read the nbytes peeked
 						record_stream_data_t* record_stream_data = session -> record_stream_data;
 						read_data(data, record_stream_data, BUFFER_BYTE_COUNT, &read_bytes);
+						record_stream_data -> buffer_filled  = true;
 					} else {
 						// Data hole, call drop to pull it from the buffer
 						// and move the read index forward
@@ -163,8 +164,7 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 					total_bytes += read_bytes;
 					//fflush(logfile);
 				}
-				
-				BUFFER_FILLED = true;
+
 				// Disconnect / Hopefully terminate the stream
 				fprintf(logfile, "Read total of %ld / %ld bytes from the stream. Disconnecting..\n", read_bytes, BUFFER_BYTE_COUNT);
 				disconnect_stream(read_stream);
@@ -249,8 +249,9 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session, i
 	// Set the data read callback now
 	pa_stream_set_read_callback(record_stream, read_stream_cb, session);
 
+	bool buffer_filled = session -> record_stream_data -> buffer_filled;
 	// Either keep iterating or return
-	if (!BUFFER_FILLED) {
+	if (!buffer_filled) {
 		//fprintf(logfile, "PA stream ready\n");
 		if (pa_stream_is_corked(record_stream)) {
 			fprintf(logfile, "Uncorking stream... \n");
@@ -261,8 +262,8 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session, i
 
 		fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
 		fflush(logfile);
-		int success = await_stream_termination(session, record_stream, mainloop_retval);
-		if (!success) {
+		bool terminated = await_stream_termination(session, record_stream, mainloop_retval);
+		if (!terminated) {
 			fprintf(logfile, "Something went wrong while waiting for a stream to terminate!\n");
 			fflush(logfile);
 			return 1;
@@ -324,6 +325,7 @@ void init_record_data(record_stream_data_t** record_stream_data) {
 	for (int i=0; i < BUFFER_BYTE_COUNT; i++) {
 		(*record_stream_data) -> data[i] = 0;
 	}
+	(*record_stream_data) -> buffer_filled = false;
 }
 
 int record_device(pa_device_t device, pa_session_t* session) {
@@ -336,7 +338,8 @@ int record_device(pa_device_t device, pa_session_t* session) {
     int mainloop_retval = 0;
     pa_context_connect(session -> context, NULL, 0, NULL);
     init_record_data(&session -> record_stream_data);
-		BUFFER_FILLED = false;
+
+		session -> record_stream_data -> buffer_filled = false;
     int read_stat = perform_read(device.monitor_source_name, device.index, session,
                                  &mainloop_retval);
     if (read_stat == 0) {
