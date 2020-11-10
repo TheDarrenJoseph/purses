@@ -13,6 +13,7 @@ typedef struct pa_session {
   pa_mainloop* mainloop;
 	pa_mainloop_api* mainloop_api;
   pa_context* context;
+  record_stream_data_t* record_stream_data;
 } pa_session_t;
 
 pa_session_t build_session(char* context_name);

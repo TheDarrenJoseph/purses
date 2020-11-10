@@ -95,9 +95,10 @@ int read_data(const void* data, record_stream_data_t* data_output, long int buff
 		// Our format should correspond to signed int of minimum 16 bits
 		// Set the variable in our output data to match
 		data_output -> data[i] = (int16_t) data_p[i];
-		//fprintf(logfile, "index: %ld, data: %d\n", i , (signed int) data_p[i]);
+	  fprintf(logfile, "index: %ld, data: %d\n", i , (signed int) data_p[i]);
 	}
 	fprintf(logfile, "Read %ld bytes from the stream.\n", BUFFER_BYTE_COUNT);
+	fflush(logfile);
 	return 0;
 }
 
@@ -140,7 +141,7 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 				size_t total_bytes = 0;
 				size_t read_bytes = 0;
 
-				record_stream_data_t* data_output = userdata;
+				pa_session_t* session = userdata;
 				while (read_bytes < BUFFER_BYTE_COUNT) {
 					//pa_stream_readable_size() ???
 
@@ -148,24 +149,25 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 					const void* data = 0;
 					pa_stream_peek(read_stream, &data, &nbytes);
 
-					if (data == NULL) {
+					if (data != NULL) {
+						// Read the nbytes peeked
+						record_stream_data_t* record_stream_data = session -> record_stream_data;
+						read_data(data, record_stream_data, BUFFER_BYTE_COUNT, &read_bytes);
+					} else {
 						// Data hole, call drop to pull it from the buffer
 						// and move the read index forward
 						fprintf(logfile, "Read stream data hole, dropping hole data...\n");
 						pa_stream_drop(read_stream);
-					} else {
-						// Read the nbytes peeked
-						read_data(data, data_output, BUFFER_BYTE_COUNT, &read_bytes);
 					}
 
 					total_bytes += read_bytes;
 					//fflush(logfile);
 				}
-
+				
+				BUFFER_FILLED = true;
 				// Disconnect / Hopefully terminate the stream
 				fprintf(logfile, "Read total of %ld / %ld bytes from the stream. Disconnecting..\n", read_bytes, BUFFER_BYTE_COUNT);
 				disconnect_stream(read_stream);
-				BUFFER_FILLED = true;
 			} else if (nbytes > buffer_nbytes) {
 				fprintf(logfile, "Waiting for stream buffer to fill: %ld/%ld.\n", nbytes, BUFFER_BYTE_COUNT);
 				buffer_nbytes = nbytes;
@@ -223,7 +225,7 @@ pa_stream* setup_record_stream(pa_session_t* session) {
 	return record_stream;
 }
 
-int perform_read(const char* device_name, int sink_idx, pa_session_t* session, record_stream_data_t* stream_read_data, int* mainloop_retval) {
+int perform_read(const char* device_name, int sink_idx, pa_session_t* session, int* mainloop_retval) {
 	FILE* logfile = get_logfile();
 
 	int await_stat = await_context_state(session, READY);
@@ -245,7 +247,7 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session, r
 	await_stream_ready(session, record_stream);
 
 	// Set the data read callback now
-	pa_stream_set_read_callback(record_stream, read_stream_cb, stream_read_data);
+	pa_stream_set_read_callback(record_stream, read_stream_cb, session);
 
 	// Either keep iterating or return
 	if (!BUFFER_FILLED) {
@@ -259,7 +261,13 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session, r
 
 		fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
 		fflush(logfile);
-		await_stream_termination(session, record_stream, mainloop_retval);
+		int success = await_stream_termination(session, record_stream, mainloop_retval);
+		if (!success) {
+			fprintf(logfile, "Something went wrong while waiting for a stream to terminate!\n");
+			fflush(logfile);
+			return 1;
+		}
+
 		//fflush(logfile);
 	} else {
 		if (!pa_stream_is_corked(record_stream)) {
@@ -308,28 +316,29 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
 }
 
 
-void init_record_data(record_stream_data_t** stream_read_data) {
+void init_record_data(record_stream_data_t** record_stream_data) {
 	// Allocate stuct memory space
-	(*stream_read_data) = malloc(sizeof(record_stream_data_t));
+	(*record_stream_data) = malloc(sizeof(record_stream_data_t));
 	// Allow BUFFER_BYTE_COUNT bytes back per read
-	int data_size = (*stream_read_data) -> data_size;
-	(*stream_read_data) -> data_size = BUFFER_BYTE_COUNT;
-	for (int i=0; i < data_size; i++) {
-		(*stream_read_data) -> data[i] = 0;
+	(*record_stream_data) -> data_size = BUFFER_BYTE_COUNT;
+	for (int i=0; i < BUFFER_BYTE_COUNT; i++) {
+		(*record_stream_data) -> data[i] = 0;
 	}
 }
 
-int record_device(pa_device_t device, pa_session_t* session, record_stream_data_t** stream_read_data) {
+int record_device(pa_device_t device, pa_session_t* session) {
     FILE *logfile = get_logfile();
+		// Set PulseAudio client library to log to stderr
+		//setenv("PULSE_LOG_SYSLOG", 1, 1);
+
     fprintf(logfile, "Recording device: %s\n", device.name);
 		fflush(logfile);
     int mainloop_retval = 0;
     pa_context_connect(session -> context, NULL, 0, NULL);
-    init_record_data(stream_read_data);
+    init_record_data(&session -> record_stream_data);
 		BUFFER_FILLED = false;
-    int read_stat = perform_read(device.monitor_source_name, device.index, session, (*stream_read_data),
+    int read_stat = perform_read(device.monitor_source_name, device.index, session,
                                  &mainloop_retval);
-
     if (read_stat == 0) {
         fprintf(logfile, "Recording complete.\n");
 				fflush(logfile);

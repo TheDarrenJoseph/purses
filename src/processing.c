@@ -110,7 +110,7 @@ complex_set_t* build_complex_set(record_stream_data_t* record_data, int sample_c
 		// Convert samples to Complex numbers
 		for (int i=0; i<sample_count; i++) {
 			int16_t sample = record_data -> data[i];
-			//fprintf(logfile, "Read sample (%d) : %d\n", i, sample);
+			fprintf(logfile, "Read sample (%d) : %d\n", i, sample);
 			data[i].complex_number = CMPLX((double) sample, 0.00);
 			data[i].magnitude = 0.00;
 		}

@@ -68,10 +68,9 @@ record_stream_data_t* read_stream_from_file() {
 // Returns a record_stream_data_t filled from the device on successful
 // Returns NULL in the event of a failure
 record_stream_data_t* record_samples_from_device(pa_device_t device, pa_session_t* session) {
-	record_stream_data_t* stream_read_data = 0;
-	int recording_stat = record_device(device, session, &stream_read_data);
+	int recording_stat = record_device(device, session);
 	if (recording_stat == 0) {
-		return stream_read_data;
+		return session -> record_stream_data;
 	} else {
 		return NULL;
 	}
@@ -95,6 +94,8 @@ void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* v
 		free(stream_read_data);
 		//fflush(logfile);
 		//refresh();
+		fprintf(logfile, "=== Recorded Data ===\n");
+		fprint_data(logfile, input_set);
 		ct_fft(input_set, output_set);
 		nyquist_filter(output_set, MAX_SAMPLE_RATE, streamed_data_size);
 		set_magnitude(output_set, streamed_data_size);

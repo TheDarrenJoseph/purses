@@ -102,40 +102,76 @@ int await_context_state(pa_session_t* session, pa_state_t expected_state) {
 	// This hooks up a callback to set pa_ready/keep this int updated
 	int pa_ready = 0;
 	pa_context_set_state_callback(session -> context, pa_context_state_cb, &pa_ready);
-	fprintf(logfile, "Awaiting context state: %s...\n", PA_STATE_LOOKUP[expected_state]);
 	fflush(logfile);
 	for (int i=0; i < MAX_ITERATIONS; i++) {
+		//fprintf(logfile, "PA Ready state is: %d\n", pa_ready);
 		if (pa_ready == expected_state) {
 			fprintf(logfile, "Context reached expected state: %s\n", PA_STATE_LOOKUP[expected_state]);
 			fflush(logfile);
 			return 0;
 		} else {
-			fprintf(logfile, "Awaiting context state %s. PA context state is: %s\n", PA_STATE_LOOKUP[expected_state], PA_STATE_LOOKUP[pa_ready]);
-			fflush(logfile);
-			pa_mainloop_iterate(session -> mainloop, 0, NULL);
-		}
-
-		//fprintf(logfile, "PA Ready state is: %d\n", pa_ready);
-		switch (pa_ready) {
-			case ERROR:
-				fprintf(logfile, "PA context encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));
-				return 1;
-			case TERMINATED:
-				// As per docs:
-				// " If the connection has terminated by itself,
-				// then there is no need to explicitly disconnect
-				// the context using pa_context_disconnect()."
-				fprintf(logfile, "PA Context is terminated (no longer available)!\n");
-				return 1;
-			case UNKOWN:
-				fprintf(logfile, "Unexpected context state!\n");
-				return 1;
+			//fprintf(logfile, "Awaiting context state %s. PA context state is: %s\n", PA_STATE_LOOKUP[expected_state], PA_STATE_LOOKUP[pa_ready]);
+			//fflush(logfile);
+			switch (pa_ready) {
+				case ERROR:
+					fprintf(logfile, "PA context encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));
+					return 1;
+				case TERMINATED:
+					// As per docs:
+					// " If the connection has terminated by itself,
+					// then there is no need to explicitly disconnect
+					// the context using pa_context_disconnect()."
+					fprintf(logfile, "PA Context is terminated (no longer available)!\n");
+					return 1;
+				case UNKOWN:
+					fprintf(logfile, "Unexpected context state!\n");
+					return 1;
+			}
+			pa_mainloop_iterate(session -> mainloop, 1, NULL);
 		}
 	}
 	fprintf(logfile, "Timed out waiting for PulseAudio server state: %s!\n", PA_STATE_LOOKUP[expected_state]);
 	return 1;
 }
 
+int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expected_state) {
+	FILE* logfile = get_logfile();
+
+	enum pa_state stream_state = NOT_READY;
+	pa_stream_set_state_callback(stream, pa_stream_state_cb, &stream_state);
+
+	char* expected_state_name = PA_STATE_LOOKUP[expected_state];
+	for (int i=0; i < MAX_ITERATIONS; i++) {
+		if (stream_state == expected_state) {
+			fprintf(logfile, "Stream reached expected state (%s)\n", expected_state_name);
+			fflush(logfile);
+			return 0;
+		} else {
+			switch (stream_state) {
+				case READY:
+					fprintf(logfile, "PA Stream ready.\n");
+					return 0;
+				case ERROR:
+					fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));
+					return 1;
+				case TERMINATED:
+					if (BUFFER_FILLED) {
+						fprintf(logfile, "PA Stream terminated (success)\n");
+						return 0;
+					} else {
+						fprintf(logfile, "PA Stream terminated (failed to fill byte buffer)\n");
+						return 1;
+					}
+				case UNKOWN:
+					fprintf(logfile, "Unexpected state! %d\n", stream_state);
+					return 1;
+			}
+			pa_mainloop_iterate(session -> mainloop, 1, NULL);
+		}
+		fprintf(logfile, "Timed out waiting for a PulseAudio stream to reach expected state (%s).\n", expected_state_name);
+		return 1;
+	}
+}
 
 int await_stream_ready(pa_session_t* session, pa_stream* stream) {
 	FILE* logfile = get_logfile();
@@ -183,7 +219,7 @@ int await_stream_termination(pa_session_t* session, pa_stream* stream, int* main
 		switch (stream_state) {
 			case NOT_READY:
 			case READY:
-				(*mainloop_retval) = pa_mainloop_iterate(session -> mainloop, 0, NULL);
+				(*mainloop_retval) = pa_mainloop_iterate(session -> mainloop, 1, NULL);
 				break;
 			case ERROR:
 				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));

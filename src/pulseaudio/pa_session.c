@@ -1,12 +1,25 @@
 #include <pulseaudio/pa_session.h>
 
 pa_session_t build_session(char* context_name) {
-	pa_session_t session = {NULL, NULL, NULL};
+	pa_session_t session = {NULL, NULL, NULL, NULL};
 	// Define our pulse audio loop and connection variables
 	session.mainloop = pa_mainloop_new();
 	session.mainloop_api = pa_mainloop_get_api(session.mainloop);
 	session.context = pa_context_new(session.mainloop_api, context_name);
 	return session;
+}
+
+// Disconnect the context and the mainloop from the session
+void destroy_session(pa_session_t session) {
+	// Disconnect and set the context to NULL
+	//disconnect_context(&session.context);
+	disconnect_mainloop(&session.mainloop);
+	// If we've unininitialised the mainloop, reset the API property also
+	if (session.mainloop == NULL) {
+		session.mainloop_api = NULL;
+	}
+
+	session.record_stream_data = NULL;
 }
 
 void disconnect_context(pa_context** pa_ctx) {
@@ -41,18 +54,5 @@ void disconnect_mainloop(pa_mainloop** mainloop) {
 		fprintf(logfile, "Disconnected PA Mainloop!\n");
 	} else {
 		fprintf(logfile, "Cannot dicsonnect. PA Mainloop was NULL!\n");
-	}
-}
-
-// Disconnect the context and the mainloop from the session
-void destroy_session(pa_session_t session) {
-	if (session.context != NULL) {
-		// Disconnect and set the context to NULL
-		disconnect_context(&session.context);
-	}
-
-	if (session.mainloop != NULL) {
-		disconnect_mainloop(&session.mainloop);
-		session.mainloop_api = NULL;
 	}
 }
