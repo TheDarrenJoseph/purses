@@ -225,8 +225,9 @@ pa_stream* setup_record_stream(pa_session_t* session) {
 	return record_stream;
 }
 
-int perform_read(const char* device_name, int sink_idx, pa_session_t* session, int* mainloop_retval) {
+int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
 	FILE* logfile = get_logfile();
+	int mainloop_retval = 0;
 
 	int await_stat = await_context_state(session, READY);
 	if (await_stat != 0) {
@@ -243,8 +244,7 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session, i
 		return 1;
 	}
 
-	// await stream readiness
-	await_stream_ready(session, record_stream);
+	await_stream_state(session, record_stream, READY, NULL);
 
 	// Set the data read callback now
 	pa_stream_set_read_callback(record_stream, read_stream_cb, session);
@@ -257,13 +257,14 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session, i
 			fprintf(logfile, "Uncorking stream... \n");
 			// Resume the stream now it's ready
 			pa_stream_cork(record_stream, 0, pa_stream_success_cb, session -> context);
-			pa_mainloop_iterate(session -> mainloop, 1, mainloop_retval);
+			pa_mainloop_iterate(session -> mainloop, 1, &mainloop_retval);
 		}
 
 		fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
 		fflush(logfile);
-		bool terminated = await_stream_termination(session, record_stream, mainloop_retval);
-		if (!terminated) {
+
+		int await_state = await_stream_state(session, record_stream, TERMINATED, &mainloop_retval);
+		if (await_state != 0) {
 			fprintf(logfile, "Something went wrong while waiting for a stream to terminate!\n");
 			fflush(logfile);
 			return 1;
@@ -275,16 +276,16 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session, i
 			fprintf(logfile, "Corking stream... \n");
 			// Resume the stream now it's ready
 			pa_stream_cork(record_stream, 1, pa_stream_success_cb, session -> context);
-			pa_mainloop_iterate(session -> mainloop, 1, mainloop_retval);
+			pa_mainloop_iterate(session -> mainloop, 1, &mainloop_retval);
 		}
 	}
 
 	// Success / Failure states
 	if (mainloop_retval >= 0) {
-		fprintf(logfile, "Mainloop exited sucessfully with value: %d\n", *mainloop_retval);
+		fprintf(logfile, "Mainloop exited sucessfully with value: %d\n", mainloop_retval);
 		return 0;
 	} else {
-		fprintf(logfile, "Mainloop failed with value: %d\n", *mainloop_retval);
+		fprintf(logfile, "Mainloop failed with value: %d\n", mainloop_retval);
 		return 1;
 	}
 }
@@ -335,20 +336,15 @@ int record_device(pa_device_t device, pa_session_t* session) {
 
     fprintf(logfile, "Recording device: %s\n", device.name);
 		fflush(logfile);
-    int mainloop_retval = 0;
     pa_context_connect(session -> context, NULL, 0, NULL);
     init_record_data(&session -> record_stream_data);
 
 		session -> record_stream_data -> buffer_filled = false;
-    int read_stat = perform_read(device.monitor_source_name, device.index, session,
-                                 &mainloop_retval);
+    int read_stat = perform_read(device.monitor_source_name, device.index, session);
     if (read_stat == 0) {
         fprintf(logfile, "Recording complete.\n");
-				fflush(logfile);
-				return 0;
     } else {
         fprintf(logfile, "Recording failed!\n");
-				fflush(logfile);
-				return 1;
     }
+		return read_stat;
 }

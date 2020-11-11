@@ -134,7 +134,13 @@ int await_context_state(pa_session_t* session, pa_state_t expected_state) {
 	return 1;
 }
 
-int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expected_state) {
+// Iterates the pa_mainloop on the provided session until the stream reaches the expected state
+// session - The PulseAudio session
+// stream - The PulseAudio recording stream
+// expected_state - the expected stream state
+// mainloop_retval - the value returned by iterating the pa_mainloop on the session
+// Returns 0 on success, 1 in the event of any issues
+int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expected_state, int* mainloop_retval) {
 	FILE* logfile = get_logfile();
 
 	enum pa_state stream_state = NOT_READY;
@@ -167,87 +173,14 @@ int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expe
 					fprintf(logfile, "Unexpected state! %d\n", stream_state);
 					return 1;
 			}
-			pa_mainloop_iterate(session -> mainloop, 1, NULL);
-		}
-		fprintf(logfile, "Timed out waiting for a PulseAudio stream to reach expected state (%s).\n", expected_state_name);
-		return 1;
-	}
-}
-
-int await_stream_ready(pa_session_t* session, pa_stream* stream) {
-	FILE* logfile = get_logfile();
-
-	enum pa_state stream_state = NOT_READY;
-	pa_stream_set_state_callback(stream, pa_stream_state_cb, &stream_state);
-
-	for (int i=0; i < MAX_ITERATIONS; i++) {
-		bool buffer_filled = (bool) session -> record_stream_data -> buffer_filled;
-
-		switch (stream_state) {
-			case NOT_READY:
-				pa_mainloop_iterate(session -> mainloop, 1, NULL);
-				break;
-			case READY:
-				fprintf(logfile, "PA Stream ready.\n");
-				return 0;
-			case ERROR:
-				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));
-				return 1;
-			case TERMINATED:
-				if (session -> record_stream_data -> buffer_filled) {
-					fprintf(logfile, "PA Stream terminated (success)\n");
-					return 0;
-				} else {
-					fprintf(logfile, "PA Stream terminated (failed to fill byte buffer)\n");
-					return 1;
-				}
-			case UNKOWN:
-			default:
-				fprintf(logfile, "Unexpected state! %d\n", stream_state);
-				return 1;
+		  int mainloop_state = pa_mainloop_iterate(session -> mainloop, 1, NULL);
+			// Return if requested/pointer provided
+			if (mainloop_retval != NULL)(*mainloop_retval) = mainloop_state;
 		}
 	}
-	fprintf(logfile, "Timed out waiting for a PulseAudio stream to be ready.\n");
+	fprintf(logfile, "Timed out waiting for a PulseAudio stream to reach expected state (%s).\n", expected_state_name);
 	return 1;
 }
-
-bool await_stream_termination(pa_session_t* session, pa_stream* stream, int* mainloop_retval) {
-	FILE* logfile = get_logfile();
-
-	enum pa_state stream_state = NOT_READY;
-	pa_stream_set_state_callback(stream, pa_stream_state_cb, &stream_state);
-	bool buffer_filled = (bool) session -> record_stream_data -> buffer_filled;
-
-	for (int i=0; i < MAX_ITERATIONS; i++) {
-		bool buffer_filled = (bool) session -> record_stream_data -> buffer_filled;
-
-		switch (stream_state) {
-			case NOT_READY:
-			case READY:
-				(*mainloop_retval) = pa_mainloop_iterate(session -> mainloop, 1, NULL);
-				break;
-			case ERROR:
-				fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));
-				return 1;
-			case TERMINATED:
-				if (buffer_filled) {
-					fprintf(logfile, "PA Stream terminated (success)\n");
-					return true;
-				} else {
-					fprintf(logfile, "PA Stream terminated (failed to fill byte buffer)\n");
-					return false;
-				}
-			case UNKOWN:
-			default:
-				fprintf(logfile, "Unexpected state! %d\n", stream_state);
-				return false;
-
-		}
-	}
-	fprintf(logfile, "Timed out waiting for a PulseAudio stream to terminate.\n");
-	return false;
-}
-
 
 int await_operation(pa_mainloop* mainloop, pa_operation* pa_op, pa_context* pa_ctx) {
 	FILE* logfile = get_logfile();
