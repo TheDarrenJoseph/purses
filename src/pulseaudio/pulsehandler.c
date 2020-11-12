@@ -252,6 +252,8 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
 		return 1;
 	}
 	await_stream_state(session, record_stream, READY, &mainloop_retval);
+	// Reset the byte count for the buffer
+	buffer_nbytes = 0;
 
 	uncork_stream(record_stream, session, &mainloop_retval);
 	fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
@@ -303,15 +305,19 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
 	return 0;
 }
 
+void zero_record_data(record_stream_data_t** record_stream_data) {
+	(*record_stream_data) -> data_size = BUFFER_BYTE_COUNT;
+	for (int i=0; i < (*record_stream_data) -> data_size; i++) {
+		(*record_stream_data) -> data[i] = 0;
+	}
+}
 
 void init_record_data(record_stream_data_t** record_stream_data) {
 	// Allocate stuct memory space
 	(*record_stream_data) = malloc(sizeof(record_stream_data_t));
 	// Allow BUFFER_BYTE_COUNT bytes back per read
 	(*record_stream_data) -> data_size = BUFFER_BYTE_COUNT;
-	for (int i=0; i < BUFFER_BYTE_COUNT; i++) {
-		(*record_stream_data) -> data[i] = 0;
-	}
+	zero_record_data(record_stream_data);
 }
 
 int record_device(pa_device_t device, pa_session_t* session) {
@@ -324,6 +330,8 @@ int record_device(pa_device_t device, pa_session_t* session) {
 
 		if (session -> record_stream_data == NULL) {
 			init_record_data(&session -> record_stream_data);
+		} else {
+			zero_record_data(&session -> record_stream_data);
 		}
 		session -> record_stream_data -> buffer_filled = false;
 
