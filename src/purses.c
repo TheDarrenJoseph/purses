@@ -111,14 +111,29 @@ void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* v
 	refresh();
 }
 
+// Gets a single character of input from the provided window
+// Returning an integer of 0 if nothing is matched, and 1 for quit
+int handle_input(WINDOW* window) {
+	int keypress = wgetch(window);
+	if (ERR != keypress) {
+		char input = (char) keypress;
+		// q - quit
+		if (input == 'q') {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 int main(void) {
 	FILE* logfile = get_logfile();
 	// init curses
-	initscr();
+	WINDOW* mainwin = initscr();
 	start_color();
 	refresh();
 
 	WINDOW* vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
+	wtimeout(vis_win, 100);
 	pa_device_t device = get_main_device();
 	pa_session_t session = build_session("visualiser-pcm-recording");
 	while (true) {
@@ -126,7 +141,8 @@ int main(void) {
 		perform_visualisation(&device, &session, vis_win);
 		//mvwprintw(vis_win, 0, 0, "%d", i);
 		fflush(logfile);
-		//wgetch(vis_win);
+		int command_code = handle_input(vis_win);
+		if (command_code == 1) break;
 	}
 
   destroy_session(session);
