@@ -164,7 +164,6 @@ int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expe
 		} else {
 			// Handle any errors / unexpected states
 			bool buffer_filled = session -> record_stream_data -> buffer_filled;
-			const char* state_name = PA_STATE_LOOKUP[stream_state];
 			switch (stream_state) {
 				case ERROR:
 					fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));

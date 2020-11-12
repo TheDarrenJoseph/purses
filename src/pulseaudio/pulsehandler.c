@@ -80,7 +80,6 @@ int perform_operation(pa_session_t* session, pa_operation* (*callback) (pa_conte
 }
 
 int read_data(const void* data, record_stream_data_t* data_output, long int buffer_size, size_t* read_bytes) {
-	FILE* logfile = get_logfile();
 	// Read the nbytes peeked
 	//fprintf(logfile, "Reading peeked segment of %ld bytes\n", nbytes);
 	//fprintf(logfile, "Reading stream, %ld/%ld bytes\n", read_bytes, initial_nbytes);
@@ -263,7 +262,7 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
 	}
 	// Drain whatever is left in the stream now we've pulled it onto the buffer
 	pa_stream_drain(record_stream, pa_stream_success_cb, NULL);
-	pa_mainloop_iterate(session -> mainloop, 1, mainloop_retval);
+	pa_mainloop_iterate(session -> mainloop, 1, &mainloop_retval);
 	cork_stream(record_stream, session, &mainloop_retval);
 
 	// Success / Failure states

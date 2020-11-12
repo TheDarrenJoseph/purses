@@ -8,7 +8,7 @@
 int calculate_height(complex_wrapper_t wrapper) {
 	int decibels = wrapper.decibels;
 	if (decibels > 0) {
-		return wrapper.decibels/10;
+		return wrapper.decibels/20;
 	}
 	return 0;
 }
@@ -40,13 +40,13 @@ void draw_bar(WINDOW* win, int start_x, int height, const char* label){
 	wattroff(win, COLOR_PAIR(1));
 }
 
-// Draw 10 decibel increments
+// Draw 20 decibel increments
 void draw_y_labels(WINDOW* win) {
 	// Account for the boxing of the window
 	int start_y = VIS_HEIGHT-2;
 	int decibels = 0;
 	for(int i=0; i<start_y; i+=2) {
-		decibels = i*10;
+		decibels = i*5;
 		if (decibels > 200) return;
 		mvwprintw(win, start_y-i, 0, "%ddB", decibels);
 	}

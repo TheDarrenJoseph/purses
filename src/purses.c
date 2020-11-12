@@ -136,7 +136,7 @@ int handle_input(WINDOW* window) {
 int main(void) {
 	FILE* logfile = get_logfile();
 	// init curses
-	WINDOW* mainwin = initscr();
+	initscr();
 	start_color();
 	refresh();
 
