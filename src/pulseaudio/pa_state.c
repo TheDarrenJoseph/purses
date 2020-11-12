@@ -126,6 +126,23 @@ void pa_stream_state_cb(struct pa_stream* stream, void* userdata) {
 	(*pa_stat) = convert_stream_state(pa_stream_state);
 }
 
+int await_stream_buffer_filled(pa_session_t* session, pa_stream* stream, int* mainloop_retval) {
+	FILE* logfile = get_logfile();
+	// Set a callback for when the state changes
+	for (int i=0; i < MAX_ITERATIONS; i++) {
+		bool buffer_filled = session -> record_stream_data -> buffer_filled;
+		if (buffer_filled) {
+			fprintf(logfile, "Stream buffer filled.\n");
+			fflush(logfile);
+			return 0;
+		} else {
+			pa_mainloop_iterate(session -> mainloop, 0, mainloop_retval);
+		}
+	}
+	fprintf(logfile, "Timed out while waiting for stream buffer to fill.\n");
+	return 1;
+}
+
 // Iterates the pa_mainloop on the provided session until the stream reaches the expected state
 // session - The PulseAudio session
 // stream - The PulseAudio recording stream

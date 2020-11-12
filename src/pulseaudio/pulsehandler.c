@@ -122,9 +122,6 @@ int disconnect_stream(pa_stream* stream) {
 void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 	FILE* logfile = get_logfile();
 	size_t initial_nbytes = nbytes;
-	fprintf(logfile, "Reading stream..\n");
-	fflush(logfile);
-
 	if (nbytes > 0) {
 		if (STREAM_READ_LOCK) {
 		   //fprintf(logfile, "Stream already being read..\n");
@@ -150,7 +147,6 @@ void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 						// Read the nbytes peeked
 						record_stream_data_t* record_stream_data = session -> record_stream_data;
 						read_data(data, record_stream_data, BUFFER_BYTE_COUNT, &read_bytes);
-						record_stream_data -> buffer_filled  = true;
 					} else {
 						// Data hole, call drop to pull it from the buffer
 						// and move the read index forward
@@ -162,9 +158,13 @@ void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 					//fflush(logfile);
 				}
 
-				// Disconnect / Hopefully terminate the stream
-				fprintf(logfile, "Read total of %ld / %ld bytes from the stream. Disconnecting..\n", read_bytes, BUFFER_BYTE_COUNT);
-				disconnect_stream(p);
+				if (total_bytes == BUFFER_BYTE_COUNT) {
+					session -> record_stream_data -> buffer_filled  = true;
+					fprintf(logfile, "DONE reading a total of %ld / %ld bytes from the stream.\n", read_bytes, BUFFER_BYTE_COUNT);
+				}
+
+				fprintf(logfile, "Read total of %ld / %ld bytes from the stream.\n", read_bytes, BUFFER_BYTE_COUNT);
+				//disconnect_stream(p);
 			} else if (nbytes > buffer_nbytes) {
 				fprintf(logfile, "Waiting for stream buffer to fill: %ld/%ld.\n", nbytes, BUFFER_BYTE_COUNT);
 				buffer_nbytes = nbytes;
@@ -263,7 +263,7 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
 		fflush(logfile);
 		// Set the data read callback now
 		pa_stream_set_read_callback(record_stream, read_stream_cb, session);
-		await_stat = await_stream_state(session, record_stream, TERMINATED, &mainloop_retval);
+		await_stat = await_stream_buffer_filled(session, record_stream, &mainloop_retval);
 		if (await_stat != 0) {
 			fprintf(logfile, "Something went wrong while waiting for a stream to terminate!\n");
 			fflush(logfile);
