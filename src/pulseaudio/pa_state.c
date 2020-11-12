@@ -85,11 +85,10 @@ int await_context_state(pa_session_t* session, pa_state_t expected_state) {
 					fprintf(logfile, "Unexpected context state!\n");
 					return 1;
 			}
-			int dispatched = pa_mainloop_iterate(session -> mainloop, 1, NULL);
-			fprintf(logfile, "Context await. %d sources dispatched by PA server.\n", dispatched);
+			pa_mainloop_iterate(session -> mainloop, 0, NULL);
 	 	}
 	}
-	fprintf(logfile, "Timed out waiting for PulseAudio server state: %s!\n", PA_STATE_LOOKUP[expected_state]);
+	fprintf(logfile, "Timed out waiting for PulseAudio context state: %s!\n", PA_STATE_LOOKUP[expected_state]);
 	return 1;
 }
 
@@ -170,8 +169,7 @@ int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expe
 			   default:
 					fprintf(logfile, "Awaiting stream state: %s, currently: %s\n", expected_state_name, state_name);
 					fflush(logfile);
-					int dispatched = pa_mainloop_iterate(session -> mainloop, 1, mainloop_retval);
-					fprintf(logfile, "Stream await. %d sources dispatched by PA server.\n", dispatched);
+				  pa_mainloop_iterate(session -> mainloop, 0, mainloop_retval);
 					break;
 			}
 		}
@@ -187,13 +185,11 @@ int await_operation(pa_mainloop* mainloop, pa_operation* pa_op, pa_context* pa_c
 	enum pa_state pa_op_state = NOT_READY;
 	for (int i=0; i < MAX_ITERATIONS; i++) {
 		pa_op_state = check_pa_op(pa_op);
-		int dispatched;
 		switch (pa_op_state) {
 			case NOT_READY:
 				//fprintf(logfile, "Operation in progress... (%d)\n", i);
 				// Block until we get something useful
-				dispatched = pa_mainloop_iterate(mainloop, 1, NULL);
-				fprintf(logfile, "Operation await. %d sources dispatched by PA server.\n", dispatched);
+				pa_mainloop_iterate(mainloop, 1, NULL);
 				break;
 			case ERROR:
 				fprintf(logfile, "Operation failed: %s!\n", pa_strerror(pa_context_errno(pa_ctx)));

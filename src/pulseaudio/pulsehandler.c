@@ -116,12 +116,14 @@ int disconnect_stream(pa_stream* stream) {
 	}
 }
 
+// pa_stream_request_cb_t
 // Waits until the read stream is filled to BUFFER_BYTE_COUNT
 // Then reads BUFFER_BYTE_COUNT into our record_stream_data_t for display
-void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
+void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 	FILE* logfile = get_logfile();
-
 	size_t initial_nbytes = nbytes;
+	fprintf(logfile, "Reading stream..\n");
+	fflush(logfile);
 
 	if (nbytes > 0) {
 		if (STREAM_READ_LOCK) {
@@ -142,7 +144,7 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 
 					// Peek to read each fragment from the buffer, sets nbytes
 					const void* data = 0;
-					pa_stream_peek(read_stream, &data, &nbytes);
+					pa_stream_peek(p, &data, &nbytes);
 
 					if (data != NULL) {
 						// Read the nbytes peeked
@@ -153,7 +155,7 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 						// Data hole, call drop to pull it from the buffer
 						// and move the read index forward
 						fprintf(logfile, "Read stream data hole, dropping hole data...\n");
-						pa_stream_drop(read_stream);
+						pa_stream_drop(p);
 					}
 
 					total_bytes += read_bytes;
@@ -162,7 +164,7 @@ void read_stream_cb(pa_stream* read_stream, size_t nbytes, void* userdata) {
 
 				// Disconnect / Hopefully terminate the stream
 				fprintf(logfile, "Read total of %ld / %ld bytes from the stream. Disconnecting..\n", read_bytes, BUFFER_BYTE_COUNT);
-				disconnect_stream(read_stream);
+				disconnect_stream(p);
 			} else if (nbytes > buffer_nbytes) {
 				fprintf(logfile, "Waiting for stream buffer to fill: %ld/%ld.\n", nbytes, BUFFER_BYTE_COUNT);
 				buffer_nbytes = nbytes;
@@ -187,16 +189,7 @@ void pa_stream_success_cb(pa_stream *stream, int success, void *userdata) {
 int connect_record_stream(pa_stream** record_stream, const char* device_name) {
 	FILE* logfile = get_logfile();
 	fprintf(logfile, "Connecting stream for device: %s\n", device_name);
-	// create pa_buffer_attr to specify stream buffer settings
-	const pa_buffer_attr buffer_attribs = {
-		// Max buffer size
-		.maxlength = (uint32_t) -1,
-		// Fragment size, this -1 will let the server choose the size
-		// with buffer
-		.fragsize = (uint32_t) -1,
-	};
-	pa_stream_flags_t stream_flags = PA_STREAM_START_CORKED;
-	int connect_stat = pa_stream_connect_record(*record_stream, device_name, &buffer_attribs, stream_flags);
+	int connect_stat = pa_stream_connect_record(*record_stream, device_name, &buffer_attribs, PA_STREAM_START_CORKED);
 	if (connect_stat == 0) {
 		fprintf(logfile, "Opened recording stream for device: %s\n", device_name);
 	} else {
@@ -232,7 +225,7 @@ int cork_stream(pa_stream* stream, pa_session_t* session, int* mainloop_retval) 
 }
 
 int uncork_stream(pa_stream* stream, pa_session_t* session, int* mainloop_retval) {
-	if (!pa_stream_is_corked(stream)) {
+	if (pa_stream_is_corked(stream)) {
 		fprintf(get_logfile(), "Uncorking stream... \n");
 		// Resume the stream now it's ready
 		pa_stream_cork(stream, 0, pa_stream_success_cb, session -> context);
@@ -255,34 +248,29 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
 	pa_stream* record_stream = NULL;
 	record_stream = setup_record_stream(session);
 	int connection_state = connect_record_stream(&record_stream, device_name);
-	if (connection_state != 0) {
+	if (connection_state == 0) {
+		fprintf(logfile, "Record stream connected.\n");
+	} else {
 		fprintf(logfile, "Record stream connection failed with return code: %d\n", connection_state);
 		return 1;
 	}
 	await_stream_state(session, record_stream, READY, &mainloop_retval);
-
-	// Set the data read callback now
-	pa_stream_set_read_callback(record_stream, read_stream_cb, session);
-
 	bool buffer_filled = session -> record_stream_data -> buffer_filled;
 	// Either keep iterating or return
 	if (!buffer_filled) {
-		if (pa_stream_is_corked(record_stream)) {
-			uncork_stream(record_stream, session, &mainloop_retval);
-		}
-
+		uncork_stream(record_stream, session, &mainloop_retval);
 		fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
 		fflush(logfile);
-		int await_state = await_stream_state(session, record_stream, TERMINATED, &mainloop_retval);
-		if (await_state != 0) {
+		// Set the data read callback now
+		pa_stream_set_read_callback(record_stream, read_stream_cb, session);
+		await_stat = await_stream_state(session, record_stream, TERMINATED, &mainloop_retval);
+		if (await_stat != 0) {
 			fprintf(logfile, "Something went wrong while waiting for a stream to terminate!\n");
 			fflush(logfile);
-			return 1;
+		  return 1;
 		}
 	} else {
-		if (!pa_stream_is_corked(record_stream)) {
-			cork_stream(record_stream, session, &mainloop_retval);
-		}
+		cork_stream(record_stream, session, &mainloop_retval);
 	}
 
 	// Success / Failure states
@@ -304,7 +292,6 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
 
   // Define our pulse audio loop and connection variables
 	pa_session_t session = build_session("sink-list");
-
 	pa_context_connect(session.context, NULL, 0 , NULL);
 	perform_operation(&session, get_sink_list, output_devices);
 	destroy_session(session);

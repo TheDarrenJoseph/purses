@@ -20,6 +20,15 @@ static const pa_sample_spec mono_ss = {
 	.channels = 1
 };
 
+// create pa_buffer_attr to specify stream buffer settings
+static const pa_buffer_attr buffer_attribs = {
+	// Max buffer size
+	.maxlength = (uint32_t) -1,
+	// Fragment size, this -1 will let the server choose the size
+	// with buffer
+	.fragsize = (uint32_t) -1,
+};
+
 // Field list is here: http://0pointer.de/lennart/projects/pulseaudio/doxygen/structpa__sink__info.html
 typedef struct pa_device {
 	uint8_t initialized;

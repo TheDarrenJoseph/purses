@@ -121,7 +121,7 @@ int main(void) {
 	WINDOW* vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
 	pa_device_t device = get_main_device();
 	pa_session_t session = build_session("visualiser-pcm-recording");
-	for(int i=0; i<2; i++) {
+	for(int i=0; i<1; i++) {
 		fprintf(logfile, "=== Performing visualisation: %d\n", i);
 		perform_visualisation(&device, &session, vis_win);
 		mvwprintw(vis_win, 0, 0, "%d", i);

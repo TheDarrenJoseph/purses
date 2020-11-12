@@ -8,6 +8,7 @@
 
 typedef struct pa_session {
   // Define our pulse audio loop and connection variables
+  char* name;
   pa_mainloop* mainloop;
 	pa_mainloop_api* mainloop_api;
   pa_context* context;

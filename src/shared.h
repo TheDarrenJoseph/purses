@@ -11,7 +11,7 @@
 #define ANSI_GREEN "[0;32m"
 #define ESC "\033"
 
-#define MAX_ITERATIONS 500
+#define MAX_ITERATIONS 500000
 #define DEVICE_MAX 16
 
 // 44100Hz sample rate
