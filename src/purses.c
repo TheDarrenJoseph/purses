@@ -3,6 +3,7 @@
 #include <string.h>
 #include <pulse/pulseaudio.h>
 #include <ncurses.h>
+#include <time.h>
 
 #include <pulseaudio/pulsehandler.h>
 #include <shared.h>
@@ -81,6 +82,9 @@ record_stream_data_t* record_samples_from_device(pa_device_t device, pa_session_
 // Then drawing the visualiser graph for the results
 void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* vis_win) {
 	FILE* logfile = get_logfile();
+	struct timeval before, after, elapsed;
+	gettimeofday(&before, NULL);
+
 	record_stream_data_t* stream_read_data = record_samples_from_device(*device, session);
 
 	complex_set_t* output_set = NULL;
@@ -106,7 +110,11 @@ void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* v
 		malloc_complex_set(&output_set, 0, MAX_SAMPLE_RATE);
 		fprintf(logfile, "Failed to record samples from device.\n");
 	}
-	draw_visualiser(vis_win, output_set);
+
+	gettimeofday(&after, NULL);
+	// Set the subtracted elapsed time
+	timersub(&after, &before, &elapsed);
+	draw_visualiser(vis_win, output_set, elapsed);
 	wrefresh(vis_win);
 	refresh();
 }
@@ -133,7 +141,7 @@ int main(void) {
 	refresh();
 
 	WINDOW* vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
-	wtimeout(vis_win, 100);
+	wtimeout(vis_win, 1);
 	pa_device_t device = get_main_device();
 	pa_session_t session = build_session("visualiser-pcm-recording");
 	while (true) {

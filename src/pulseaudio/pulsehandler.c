@@ -90,10 +90,9 @@ int read_data(const void* data, record_stream_data_t* data_output, long int buff
 		// Our format should correspond to signed int of minimum 16 bits
 		// Set the variable in our output data to match
 		data_output -> data[i] = (int16_t) data_p[i];
-	  fprintf(logfile, "index: %ld, data: %d\n", i , (signed int) data_p[i]);
+	  //fprintf(logfile, "index: %ld, data: %d\n", i , (signed int) data_p[i]);
 	}
-	fprintf(logfile, "Read %ld bytes from the stream.\n", BUFFER_BYTE_COUNT);
-	fflush(logfile);
+	//fprintf(logfile, "Read %ld bytes from the stream.\n", BUFFER_BYTE_COUNT);
 	return 0;
 }
 
@@ -174,8 +173,6 @@ void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 	} else {
 		fprintf(logfile, "No data to read from stream!\n");
 	}
-
-	fflush(logfile);
 }
 
 void pa_stream_success_cb(pa_stream *stream, int success, void *userdata) {
@@ -257,17 +254,16 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
 
 	uncork_stream(record_stream, session, &mainloop_retval);
 	fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
-	fflush(logfile);
 	// Set the data read callback now
 	pa_stream_set_read_callback(record_stream, read_stream_cb, session);
 	int await_stat = await_stream_buffer_filled(session, record_stream, &mainloop_retval);
 	if (await_stat != 0) {
 		fprintf(logfile, "Something went wrong while waiting for a stream to terminate!\n");
-		fflush(logfile);
 	  return 1;
 	}
 	// Drain whatever is left in the stream now we've pulled it onto the buffer
 	pa_stream_drain(record_stream, pa_stream_success_cb, NULL);
+	pa_mainloop_iterate(session -> mainloop, 1, mainloop_retval);
 	cork_stream(record_stream, session, &mainloop_retval);
 
 	// Success / Failure states

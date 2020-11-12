@@ -60,12 +60,10 @@ int await_context_state(pa_session_t* session, pa_state_t expected_state) {
 	// This hooks up a callback to set pa_ready/keep this int updated
 	int pa_ready = 0;
 	pa_context_set_state_callback(session -> context, pa_context_state_cb, &pa_ready);
-	fflush(logfile);
 	for (int i=0; i < MAX_ITERATIONS; i++) {
 		//fprintf(logfile, "PA Ready state is: %d\n", pa_ready);
 		if (pa_ready == expected_state) {
 			fprintf(logfile, "Context reached expected state: %s\n", PA_STATE_LOOKUP[expected_state]);
-			fflush(logfile);
 			return 0;
 		} else {
 			//fprintf(logfile, "Awaiting context state %s. PA context state is: %s\n", PA_STATE_LOOKUP[expected_state], PA_STATE_LOOKUP[pa_ready]);
@@ -162,7 +160,6 @@ int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expe
 	for (int i=0; i < MAX_ITERATIONS; i++) {
 		if (stream_state == expected_state) {
 			fprintf(logfile, "Stream reached expected state (%s)\n", expected_state_name);
-			fflush(logfile);
 			return 0;
 		} else {
 			// Handle any errors / unexpected states
@@ -184,7 +181,6 @@ int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expe
 					fprintf(logfile, "Unexpected state! %d\n", stream_state);
           return 1;
 			   default:
-					fflush(logfile);
 				  pa_mainloop_iterate(session -> mainloop, 0, mainloop_retval);
 					break;
 			}

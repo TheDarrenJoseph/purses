@@ -44,8 +44,11 @@ void draw_bar(WINDOW* win, int start_x, int height, const char* label){
 void draw_y_labels(WINDOW* win) {
 	// Account for the boxing of the window
 	int start_y = VIS_HEIGHT-2;
-	for (int i=0; i<start_y; i+=6) {
-		mvwprintw(win, start_y-i, 0, "%ddB", i*10);
+	int decibels = 0;
+	for(int i=0; i<start_y; i+=2) {
+		decibels = i*10;
+		if (decibels > 200) return;
+		mvwprintw(win, start_y-i, 0, "%ddB", decibels);
 	}
 }
 
@@ -58,11 +61,13 @@ void update_graph(WINDOW* win, complex_set_t* output_set) {
 	complex_wrapper_t* complex_vals = output_set -> complex_numbers;
 	int data_size = output_set -> data_size;
 	int frequency = output_set -> frequency;
+	fprintf(logfile, "%d output samples.\n", data_size);
+	fprintf(logfile, "%d output frequency.\n", frequency);
+
 	// divide by 2 to get the Nyquist freuency divided by the sample count
 	int bin_frequency = (data_size > 0) ? frequency / data_size : 0;
   // Divide the total sample count by 11 bars
 	int bin_increment =  (data_size > 0) ? data_size / 11 : 0;
-	fprintf(logfile, "%d samples.\n", data_size);
 	fprintf(logfile, "%dHz frequency per bin.\n", bin_frequency);
 	fprintf(logfile, "%d bin index increment.\n", bin_increment);
 	// From 5 to avoid window border, up to 5 + 12 bars
@@ -75,7 +80,7 @@ void update_graph(WINDOW* win, complex_set_t* output_set) {
 	wrefresh(win);
 }
 
-void draw_visualiser(WINDOW* win, complex_set_t* output_set) {
+void draw_visualiser(WINDOW* win, complex_set_t* output_set, struct timeval time_taken) {
 	werase(win);
 	box(win, 0, 0);
 	draw_y_labels(win);
@@ -83,6 +88,10 @@ void draw_visualiser(WINDOW* win, complex_set_t* output_set) {
 	// find the midpoint for our banner
 	int target_x = (VIS_WIDTH/2) - sizeof(banner);
 	mvwprintw(win, 0, target_x, banner);
-	mvwprintw(win, VIS_HEIGHT-1, target_x, "%dSamples@%dHz", output_set -> data_size, output_set -> sample_rate);
+	long int time_milis = (long int) time_taken.tv_usec / 1000;
+	float fps = 1000 / time_milis;
 	update_graph(win, output_set);
+	mvwprintw(win, VIS_HEIGHT-1, VIS_WIDTH-16, "%ldms", time_milis);
+	mvwprintw(win, VIS_HEIGHT-1, VIS_WIDTH-10, "%.1fFPS", fps);
+	mvwprintw(win, VIS_HEIGHT-1, target_x, "%dSamples@%dHz", output_set -> data_size, output_set -> sample_rate);
 }
