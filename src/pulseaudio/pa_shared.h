@@ -1,7 +1,7 @@
 #pragma once
 
-static const char* PA_STATE_LOOKUP[5] = {"NOT_READY", "READY", "ERROR", "TERMINATED", "UNKOWN" };
-static const char* PA_CONTEXT_STATE_LOOKUP[7] = {"UNCONNECTED", "CONNECTING", "AUTHORIZING", "SETTING_NAME", "READY", "FAILED", "TERMINATED" };
+extern const char* PA_STATE_LOOKUP[5];
+extern const char* PA_CONTEXT_STATE_LOOKUP[7];
 
 // Shared state for operations/contexts/streams, etc
 typedef enum pa_state {

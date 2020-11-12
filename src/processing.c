@@ -50,8 +50,6 @@ void set_magnitude(complex_set_t* x, int sample_count) {
 // x - input set
 // X - output set
 void dft(complex_set_t* x, complex_set_t* X) {
-	FILE* logfile = get_logfile();
-	//fprintf(logfile, "Running DFT...\n");
 	int N = x -> data_size;
 
 	if (N == 1) {
@@ -129,7 +127,7 @@ complex_set_t* record_stream_to_complex_set(record_stream_data_t* record_stream)
 	// Check for N power of 2
 	if (size_n == 0 || power_of_two) {
 		fprintf(logfile, "Cannot perform radix-2 processing if input data size if not a power of 2!, received data size: %d\n", size_n);
-		return;
+		return NULL;
 	}
 
 	complex_set_t* output_set = 0;
@@ -145,7 +143,6 @@ complex_set_t* record_stream_to_complex_set(record_stream_data_t* record_stream)
 // Performs a DFT on each set
 // Recombines the outputs into output_data
 void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data, int half_size) {
-	FILE* logfile = get_logfile();
 	int sample_rate = input_data -> sample_rate;
 
 	if (half_size < 1) {
@@ -212,7 +209,6 @@ void half_size_dfts(complex_set_t* input_data, complex_set_t* output_data, int h
 // Cooley-Turkey algorithm, radix 2
 // This performs a radix-2 via a Decimation In Time (DIT) approach
 void ct_fft(complex_set_t* input_data, complex_set_t* output_data) {
-	FILE* logfile = get_logfile();
 	unsigned int size_n = input_data -> data_size;
 	//fprintf(logfile, "=== Performing Radix-2 CT FFT of size: %d \n", size_n);
 

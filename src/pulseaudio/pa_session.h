@@ -16,5 +16,6 @@ typedef struct pa_session {
 
 pa_session_t build_session(char* context_name);
 void disconnect_context(pa_context** pa_ctx);
+void quit_mainloop(pa_mainloop* mainloop, int retval);
 void disconnect_mainloop(pa_mainloop** mainloop);
 void destroy_session(pa_session_t session);

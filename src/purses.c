@@ -97,7 +97,7 @@ void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* v
 		fprintf(logfile, "=== Recorded Data ===\n");
 		fprint_data(logfile, input_set);
 		ct_fft(input_set, output_set);
-		nyquist_filter(output_set, MAX_SAMPLE_RATE, streamed_data_size);
+		nyquist_filter(output_set);
 		set_magnitude(output_set, streamed_data_size);
 		fprintf(logfile, "=== Result Data ===\n");
 		fprint_data(logfile, output_set);

@@ -43,6 +43,10 @@ void disconnect_context(pa_context** pa_ctx) {
 	}
 }
 
+void quit_mainloop(pa_mainloop* mainloop, int retval) {
+	if (mainloop != NULL) pa_mainloop_quit(mainloop, retval);
+}
+
 void disconnect_mainloop(pa_mainloop** mainloop) {
 	FILE* logfile = get_logfile();
 	if (mainloop != NULL && *mainloop != NULL) {

@@ -10,11 +10,6 @@ static const pa_sample_spec mono_ss = {
 
 static bool STREAM_READ_LOCK = false;
 static int buffer_nbytes = 0;
-static int sink_count = 0;
-
-void quit_mainloop(pa_mainloop* mainloop, int retval) {
-	if (mainloop != NULL) pa_mainloop_quit(mainloop, retval);
-}
 
 void pa_sinklist_cb(pa_context* c, const pa_sink_info* sink_info, int eol, void* userdata) {
 	FILE* logfile = get_logfile();
@@ -107,7 +102,7 @@ int disconnect_stream(pa_stream* stream) {
 	pa_stream_state_t pa_stream_state = pa_stream_get_state(stream);
 
 	// We should only really disconnect a stream if it's not failed or disconnected
-  if (pa_stream_state == PA_CONTEXT_FAILED || pa_stream_state == PA_CONTEXT_TERMINATED) {
+  if (pa_stream_state == PA_STREAM_FAILED || pa_stream_state == PA_STREAM_TERMINATED) {
 		fprintf(logfile, "Will not disconnect stream, stream is already failed/terminated with state code: %d!\n", pa_stream_state);
 		return 1;
 	} else {
@@ -225,6 +220,28 @@ pa_stream* setup_record_stream(pa_session_t* session) {
 	return record_stream;
 }
 
+int cork_stream(pa_stream* stream, pa_session_t* session, int* mainloop_retval) {
+	if (!pa_stream_is_corked(stream)) {
+		fprintf(get_logfile(), "Corking stream... \n");
+		// Resume the stream now it's ready
+		pa_stream_cork(stream, 1, pa_stream_success_cb, session -> context);
+		pa_mainloop_iterate(session -> mainloop, 1, mainloop_retval);
+		return 0;
+	}
+	return 1;
+}
+
+int uncork_stream(pa_stream* stream, pa_session_t* session, int* mainloop_retval) {
+	if (!pa_stream_is_corked(stream)) {
+		fprintf(get_logfile(), "Uncorking stream... \n");
+		// Resume the stream now it's ready
+		pa_stream_cork(stream, 0, pa_stream_success_cb, session -> context);
+		pa_mainloop_iterate(session -> mainloop, 1, mainloop_retval);
+		return 0;
+	}
+	return 1;
+}
+
 int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
 	FILE* logfile = get_logfile();
 	int mainloop_retval = 0;
@@ -237,14 +254,12 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
 
 	pa_stream* record_stream = NULL;
 	record_stream = setup_record_stream(session);
-	enum pa_state stream_state = NOT_READY;
 	int connection_state = connect_record_stream(&record_stream, device_name);
-	if (connection_state = 0) {
-		fprintf(logfile, "Record stream connection failed with return code: %d", connection_state);
+	if (connection_state != 0) {
+		fprintf(logfile, "Record stream connection failed with return code: %d\n", connection_state);
 		return 1;
 	}
-
-	await_stream_state(session, record_stream, READY, NULL);
+	await_stream_state(session, record_stream, READY, &mainloop_retval);
 
 	// Set the data read callback now
 	pa_stream_set_read_callback(record_stream, read_stream_cb, session);
@@ -252,31 +267,21 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
 	bool buffer_filled = session -> record_stream_data -> buffer_filled;
 	// Either keep iterating or return
 	if (!buffer_filled) {
-		//fprintf(logfile, "PA stream ready\n");
 		if (pa_stream_is_corked(record_stream)) {
-			fprintf(logfile, "Uncorking stream... \n");
-			// Resume the stream now it's ready
-			pa_stream_cork(record_stream, 0, pa_stream_success_cb, session -> context);
-			pa_mainloop_iterate(session -> mainloop, 1, &mainloop_retval);
+			uncork_stream(record_stream, session, &mainloop_retval);
 		}
 
 		fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
 		fflush(logfile);
-
 		int await_state = await_stream_state(session, record_stream, TERMINATED, &mainloop_retval);
 		if (await_state != 0) {
 			fprintf(logfile, "Something went wrong while waiting for a stream to terminate!\n");
 			fflush(logfile);
 			return 1;
 		}
-
-		//fflush(logfile);
 	} else {
 		if (!pa_stream_is_corked(record_stream)) {
-			fprintf(logfile, "Corking stream... \n");
-			// Resume the stream now it's ready
-			pa_stream_cork(record_stream, 1, pa_stream_success_cb, session -> context);
-			pa_mainloop_iterate(session -> mainloop, 1, &mainloop_retval);
+			cork_stream(record_stream, session, &mainloop_retval);
 		}
 	}
 

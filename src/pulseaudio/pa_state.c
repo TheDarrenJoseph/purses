@@ -5,7 +5,7 @@ void pa_context_state_cb(struct pa_context* context, void* userdata) {
 	// assign an int ptr to our void ptr to set type for deref
 	enum pa_state* pa_stat = userdata;
 
-    pa_context_state_t pa_con_state = pa_context_get_state(context);
+  pa_context_state_t pa_con_state = pa_context_get_state(context);
 	//printf("PA Context State is: %d\n", (*pa_stat));
 	switch  (pa_con_state) {
 		// Context setup states
@@ -31,48 +31,6 @@ void pa_context_state_cb(struct pa_context* context, void* userdata) {
 		// Anything else/exceptional
 		default:
 			*pa_stat = UNKOWN;
-			break;
-	}
-}
-
-// Handles stream state change and sets userdata to our more generic pa_state
-void pa_stream_state_cb(struct pa_stream* stream, void* userdata) {
-	FILE* logfile = get_logfile();
-	// assign an int ptr to our void ptr to set type for deref
-	enum pa_state* pa_stat = userdata;
-
-    pa_stream_state_t pa_stream_state = pa_stream_get_state(stream);
-	//fprintf(logfile, "PA Stream State is: %d\n", pa_stream_state);
-	switch  (pa_stream_state) {
-		// The stream is not yet connected to any sink or source.
-		case PA_STREAM_UNCONNECTED:
-		// The stream is being created.
-		case PA_STREAM_CREATING:
-			//fprintf(logfile, "Stream unconnected/being created.");
-			(*pa_stat) = NOT_READY;
-			break;
-		//The stream is established, you may pass audio data to it now.
-		case PA_STREAM_READY:
-			(*pa_stat )= READY;
-			break;
-		// An error occurred that made the stream invalid.
-		case PA_STREAM_FAILED:
-			(*pa_stat) = ERROR;
-			fprintf(logfile, "Disconnecting failed stream..\n");
-			fflush(logfile);
-			pa_stream_disconnect(stream);
-			break;
-		// The stream has been terminated cleanly.
-		case PA_STREAM_TERMINATED:
-			fprintf(logfile, "Stream terminated.\n");
-			(*pa_stat) = TERMINATED;
-			break;
-		// Anything else/exceptional
-		default:
-			(*pa_stat) = UNKOWN;
-			fprintf(logfile, "Disconnecting stream (unexpected state)..\n");
-			fflush(logfile);
-			pa_stream_disconnect(stream);
 			break;
 	}
 }
@@ -127,37 +85,74 @@ int await_context_state(pa_session_t* session, pa_state_t expected_state) {
 					fprintf(logfile, "Unexpected context state!\n");
 					return 1;
 			}
-			pa_mainloop_iterate(session -> mainloop, 1, NULL);
-		}
+			int dispatched = pa_mainloop_iterate(session -> mainloop, 1, NULL);
+			fprintf(logfile, "Context await. %d sources dispatched by PA server.\n", dispatched);
+	 	}
 	}
 	fprintf(logfile, "Timed out waiting for PulseAudio server state: %s!\n", PA_STATE_LOOKUP[expected_state]);
 	return 1;
 }
 
+pa_state_t convert_stream_state(pa_stream_state_t pa_stream_state) {
+	FILE* logfile = get_logfile();
+	switch  (pa_stream_state) {
+		// The stream is not yet connected to any sink or source.
+		case PA_STREAM_UNCONNECTED:
+		// The stream is being created.
+		case PA_STREAM_CREATING:
+			//fprintf(logfile, "Stream unconnected/being created.");
+			return NOT_READY;
+		//The stream is established, you may pass audio data to it now.
+		case PA_STREAM_READY:
+			return READY;
+		// An error occurred that made the stream invalid.
+		case PA_STREAM_FAILED:
+			return ERROR;
+		// The stream has been terminated cleanly.
+		case PA_STREAM_TERMINATED:
+			return TERMINATED;
+			break;
+		// Anything else/exceptional
+		default:
+			fprintf(logfile, "Unexpected stream state: %d\n", pa_stream_state);
+			return UNKOWN;
+	}
+}
+
+// Handles stream state change and sets userdata to our more generic pa_state
+void pa_stream_state_cb(struct pa_stream* stream, void* userdata) {
+	// assign an int ptr to our void ptr to set type for deref
+	enum pa_state* pa_stat = userdata;
+	pa_stream_state_t pa_stream_state = pa_stream_get_state(stream);
+	(*pa_stat) = convert_stream_state(pa_stream_state);
+}
+
 // Iterates the pa_mainloop on the provided session until the stream reaches the expected state
 // session - The PulseAudio session
 // stream - The PulseAudio recording stream
-// expected_state - the expected stream state
+// expected_state - the expected stream state, this should be either READY, NOT_READY, or TERMINATED
 // mainloop_retval - the value returned by iterating the pa_mainloop on the session
 // Returns 0 on success, 1 in the event of any issues
 int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expected_state, int* mainloop_retval) {
 	FILE* logfile = get_logfile();
 
-	enum pa_state stream_state = NOT_READY;
+	// Get the state
+	pa_stream_state_t pa_stream_state = pa_stream_get_state(stream);
+	pa_state_t stream_state = convert_stream_state(pa_stream_state);
+	// Set a callback for when the state changes
 	pa_stream_set_state_callback(stream, pa_stream_state_cb, &stream_state);
 
-	char* expected_state_name = PA_STATE_LOOKUP[expected_state];
+	const char* expected_state_name = PA_STATE_LOOKUP[expected_state];
 	for (int i=0; i < MAX_ITERATIONS; i++) {
 		if (stream_state == expected_state) {
 			fprintf(logfile, "Stream reached expected state (%s)\n", expected_state_name);
 			fflush(logfile);
 			return 0;
 		} else {
+			// Handle any errors / unexpected states
 			bool buffer_filled = session -> record_stream_data -> buffer_filled;
+			const char* state_name = PA_STATE_LOOKUP[stream_state];
 			switch (stream_state) {
-				case READY:
-					fprintf(logfile, "PA Stream ready.\n");
-					return 0;
 				case ERROR:
 					fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));
 					return 1;
@@ -171,11 +166,14 @@ int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expe
 					}
 				case UNKOWN:
 					fprintf(logfile, "Unexpected state! %d\n", stream_state);
-					return 1;
+          return 1;
+			   default:
+					fprintf(logfile, "Awaiting stream state: %s, currently: %s\n", expected_state_name, state_name);
+					fflush(logfile);
+					int dispatched = pa_mainloop_iterate(session -> mainloop, 1, mainloop_retval);
+					fprintf(logfile, "Stream await. %d sources dispatched by PA server.\n", dispatched);
+					break;
 			}
-		  int mainloop_state = pa_mainloop_iterate(session -> mainloop, 1, NULL);
-			// Return if requested/pointer provided
-			if (mainloop_retval != NULL)(*mainloop_retval) = mainloop_state;
 		}
 	}
 	fprintf(logfile, "Timed out waiting for a PulseAudio stream to reach expected state (%s).\n", expected_state_name);
@@ -189,11 +187,13 @@ int await_operation(pa_mainloop* mainloop, pa_operation* pa_op, pa_context* pa_c
 	enum pa_state pa_op_state = NOT_READY;
 	for (int i=0; i < MAX_ITERATIONS; i++) {
 		pa_op_state = check_pa_op(pa_op);
+		int dispatched;
 		switch (pa_op_state) {
 			case NOT_READY:
 				//fprintf(logfile, "Operation in progress... (%d)\n", i);
 				// Block until we get something useful
-				pa_mainloop_iterate(mainloop, 1, NULL);
+				dispatched = pa_mainloop_iterate(mainloop, 1, NULL);
+				fprintf(logfile, "Operation await. %d sources dispatched by PA server.\n", dispatched);
 				break;
 			case ERROR:
 				fprintf(logfile, "Operation failed: %s!\n", pa_strerror(pa_context_errno(pa_ctx)));
