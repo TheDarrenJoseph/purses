@@ -161,6 +161,7 @@ void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 				if (total_bytes == BUFFER_BYTE_COUNT) {
 					session -> record_stream_data -> buffer_filled  = true;
 					fprintf(logfile, "DONE reading a total of %ld / %ld bytes from the stream.\n", read_bytes, BUFFER_BYTE_COUNT);
+					STREAM_READ_LOCK = false;
 				}
 
 				fprintf(logfile, "Read total of %ld / %ld bytes from the stream.\n", read_bytes, BUFFER_BYTE_COUNT);
@@ -239,14 +240,10 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
 	FILE* logfile = get_logfile();
 	int mainloop_retval = 0;
 
-	int await_stat = await_context_state(session, READY);
-	if (await_stat != 0) {
-		fprintf(logfile, "Awaiting PA Context Ready returned failure code: %d\n", await_stat);
-		return 1;
+	pa_stream* record_stream = session -> record_stream;
+	if (record_stream == NULL) {
+		 record_stream = setup_record_stream(session);
 	}
-
-	pa_stream* record_stream = NULL;
-	record_stream = setup_record_stream(session);
 	int connection_state = connect_record_stream(&record_stream, device_name);
 	if (connection_state == 0) {
 		fprintf(logfile, "Record stream connected.\n");
@@ -255,23 +252,21 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
 		return 1;
 	}
 	await_stream_state(session, record_stream, READY, &mainloop_retval);
-	bool buffer_filled = session -> record_stream_data -> buffer_filled;
-	// Either keep iterating or return
-	if (!buffer_filled) {
-		uncork_stream(record_stream, session, &mainloop_retval);
-		fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
+
+	uncork_stream(record_stream, session, &mainloop_retval);
+	fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
+	fflush(logfile);
+	// Set the data read callback now
+	pa_stream_set_read_callback(record_stream, read_stream_cb, session);
+	int await_stat = await_stream_buffer_filled(session, record_stream, &mainloop_retval);
+	if (await_stat != 0) {
+		fprintf(logfile, "Something went wrong while waiting for a stream to terminate!\n");
 		fflush(logfile);
-		// Set the data read callback now
-		pa_stream_set_read_callback(record_stream, read_stream_cb, session);
-		await_stat = await_stream_buffer_filled(session, record_stream, &mainloop_retval);
-		if (await_stat != 0) {
-			fprintf(logfile, "Something went wrong while waiting for a stream to terminate!\n");
-			fflush(logfile);
-		  return 1;
-		}
-	} else {
-		cork_stream(record_stream, session, &mainloop_retval);
+	  return 1;
 	}
+	// Drain whatever is left in the stream now we've pulled it onto the buffer
+	pa_stream_drain(record_stream, pa_stream_success_cb, NULL);
+	cork_stream(record_stream, session, &mainloop_retval);
 
 	// Success / Failure states
 	if (mainloop_retval >= 0) {
@@ -298,7 +293,6 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
 
 	int dev_count = 0;
 	for (int i=0; i < DEVICE_MAX; i++){
-
 		pa_device_t device = output_devices[i];
 		if (device.initialized) {
 			dev_count++;
@@ -318,7 +312,6 @@ void init_record_data(record_stream_data_t** record_stream_data) {
 	for (int i=0; i < BUFFER_BYTE_COUNT; i++) {
 		(*record_stream_data) -> data[i] = 0;
 	}
-	(*record_stream_data) -> buffer_filled = false;
 }
 
 int record_device(pa_device_t device, pa_session_t* session) {
@@ -328,10 +321,25 @@ int record_device(pa_device_t device, pa_session_t* session) {
 
     fprintf(logfile, "Recording device: %s\n", device.name);
 		fflush(logfile);
-    pa_context_connect(session -> context, NULL, 0, NULL);
-    init_record_data(&session -> record_stream_data);
 
+		if (session -> record_stream_data == NULL) {
+			init_record_data(&session -> record_stream_data);
+		}
 		session -> record_stream_data -> buffer_filled = false;
+
+		pa_context_state_t pa_con_state = pa_context_get_state(session -> context);
+		if (PA_CONTEXT_UNCONNECTED == pa_con_state) {
+    	pa_context_connect(session -> context, NULL, 0, NULL);
+		}
+ 		pa_con_state = pa_context_get_state(session -> context);
+		if (PA_CONTEXT_READY != pa_con_state) {
+			int await_stat = await_context_state(session, READY);
+			if (await_stat != 0) {
+				fprintf(logfile, "Awaiting PA Context Ready returned failure code: %d\n", await_stat);
+				return 1;
+			}
+		}
+
     int read_stat = perform_read(device.monitor_source_name, device.index, session);
     if (read_stat == 0) {
         fprintf(logfile, "Recording complete.\n");

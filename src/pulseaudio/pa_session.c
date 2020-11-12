@@ -1,11 +1,12 @@
 #include <pulseaudio/pa_session.h>
 
 pa_session_t build_session(char* context_name) {
-	pa_session_t session = {NULL, NULL, NULL, NULL, NULL};
+	pa_session_t session = {NULL, NULL, NULL, NULL, NULL, NULL};
 	// Define our pulse audio loop and connection variables
 	session.name = context_name;
 	session.mainloop = pa_mainloop_new();
 	session.mainloop_api = pa_mainloop_get_api(session.mainloop);
+	session.record_stream = NULL;
 	session.context = pa_context_new(session.mainloop_api, context_name);
 	return session;
 }

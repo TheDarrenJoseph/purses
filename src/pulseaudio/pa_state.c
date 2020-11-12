@@ -88,7 +88,7 @@ int await_context_state(pa_session_t* session, pa_state_t expected_state) {
 			pa_mainloop_iterate(session -> mainloop, 0, NULL);
 	 	}
 	}
-	fprintf(logfile, "Timed out waiting for PulseAudio context state: %s!\n", PA_STATE_LOOKUP[expected_state]);
+	fprintf(logfile, "Timed out waiting for PulseAudio context state: %s. Actual state was: %s!\n", PA_STATE_LOOKUP[expected_state], PA_STATE_LOOKUP[pa_ready]);
 	return 1;
 }
 
@@ -184,7 +184,6 @@ int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expe
 					fprintf(logfile, "Unexpected state! %d\n", stream_state);
           return 1;
 			   default:
-					fprintf(logfile, "Awaiting stream state: %s, currently: %s\n", expected_state_name, state_name);
 					fflush(logfile);
 				  pa_mainloop_iterate(session -> mainloop, 0, mainloop_retval);
 					break;
