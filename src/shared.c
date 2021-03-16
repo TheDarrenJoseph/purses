@@ -53,7 +53,7 @@ void print_data(complex_set_t* samples) {
 	fprint_data(stdout, samples);
 }
 
-void fprintln (char* format, va_list vlist) {
+void fprintln (char* format) {
 	int current_len = strlen(format);
 
 	// Add space for the newline char
@@ -62,17 +62,13 @@ void fprintln (char* format, va_list vlist) {
 	strcat(expanded, format);
 	strcat(expanded, "\n");
 
-	if (vlist != NULL) {
-		vprintf(expanded, vlist);
-	} else {
-		printf(expanded);
-	}
+  printf(expanded);	
 }
 
 void printlncol( char* ansi_code, char* format) {
 	printf("%s%s",ESC,ansi_code);
-	fprintln(format, NULL);
-	printf("%s%s",ESC,ANSI_DEFAULT);
+	printf("%s\n", format);
+	printf("%s%s\n",ESC,ANSI_DEFAULT);
 }
 
 long seek_file_size(FILE* file) {

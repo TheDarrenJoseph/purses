@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
+#include <sys/wait.h>
 #include <pulse/pulseaudio.h>
 #include <ncurses.h>
 
@@ -11,6 +12,13 @@
 
 #define EPS 0.01
 
+
+void assert_int(int expected, int actual) {
+	if (expected != actual) {
+		printf("Expected: %d \nActual: %d\n", expected, actual);
+		exit(1);
+	}
+}
 
 void assert_double(double expected, double actual) {
 	double diff = expected - actual;
@@ -48,28 +56,29 @@ void assert_complex(double complex expected, double complex actual) {
 void test_dft_1hz_8hz() {
 	printf("=== Testing DFT of 1Hz Sine, 8Hz sample rate, 1s ===\n");
 
-	int sample_rate = 8;
 	double complex empty = CMPLX(0.00, 0.0);
 
 	// Test scenario, 1 second of recording, 8 samples (bytes) at 8Hz
 	// of sine wave 1Hz, so we have 8 samples our our 1Hz wave
 	// Allocate stuct memory space
-
+  
+  // GIVEN 1 second of a 1HZ sine wave across 8 samples
 	complex_set_t* complex_samples = (complex_set_t*) malloc(sizeof(complex_set_t));
 	complex_samples -> data_size = 8;
-	complex_samples -> sample_rate = 1;
+	complex_samples -> sample_rate = 8;
 	complex_wrapper_t* data = complex_samples -> complex_numbers;
 	data = (complex_wrapper_t*) malloc(sizeof(complex_wrapper_t) * 8);
+    
 
-	double complex sample0 = CMPLX(0.0 , 0.0);
+  // AND it is properly represented as complex samples
+	double complex sample0 = CMPLX(0.0, 0.0);
 	double complex sample1 = CMPLX(0.707 , 0.0);
 	double complex sample2 = CMPLX(1.0 , 0.0);
 	double complex sample3 = CMPLX(0.707 , 0.0);
-	double complex sample4 = CMPLX(0.0 , 0.0); // And inverse
+	double complex sample4 = CMPLX(0.0 , 0.0); // And inverse (aliasing)
 	double complex sample5 = CMPLX(-0.707, 0.0);
 	double complex sample6 = CMPLX(-1.0, 0.0);
 	double complex sample7 = CMPLX(-0.707 , 0.0);
-
 
 	data[0].complex_number = sample0;
 	data[1].complex_number = sample1;
@@ -90,12 +99,14 @@ void test_dft_1hz_8hz() {
 	for (int i=0; i<8; i++) {
 		output -> complex_numbers[i] = (complex_wrapper_t) { empty, 0.0 };
 	}
-
+  
+  // WHEN we perform a DFT on the input
 	dft(complex_samples, output);
 
 	printf("=== Result Data ===\n");
 	print_data(output);
 
+  // THEN we expect to see results in our 1Hz bin to indicate the frequency
 	complex_wrapper_t* output_data = output -> complex_numbers;
 	assert_complex(CMPLX(0.00, 0.00), output_data[0].complex_number);
 	assert_complex(CMPLX(0.00, -4.00), output_data[1].complex_number);
@@ -107,22 +118,26 @@ void test_dft_1hz_8hz() {
 	assert_complex(CMPLX(0.00, 4.00), output_data[7].complex_number);
 
 	printf("=== Filtered Result Data ===\n");
-	set_magnitude(output, 4);
 	nyquist_filter(output);
-
+	set_magnitude(output, 8);
 	print_data(output);
 
-	assert_complex(CMPLX(0.00, 0.00), output_data[0].complex_number);
+  assert_int(4, output -> data_size);
+
+	assert_complex(CMPLX(-0.00, 0.00), output_data[0].complex_number);
 	assert_double(0.0, output_data[0].magnitude);
-	complex_wrapper_t onehz_bin =  output_data[1];
-	assert_complex(CMPLX(0.00, -4.00*2), onehz_bin.complex_number);
-	// Our 1Hz signal should be represented here
-	assert_double(1.0, onehz_bin.magnitude);
-	assert_complex(CMPLX(0.00, 0.00), output_data[2].complex_number);
+
+	assert_complex(CMPLX(0.00, -8.00), output_data[1].complex_number);
+	// AND the magnitude of the 1Hz signal should be represented here
+	assert_double(1.0, output_data[1].magnitude);
+
+	assert_complex(CMPLX(-0.00, 0.00), output_data[2].complex_number);
 	assert_double(0.0, output_data[2].magnitude);
+
 	assert_complex(CMPLX(0.00, 0.00), output_data[3].complex_number);
 	assert_double(0.0, output_data[3].magnitude);
-	// The remaining data has been blanked
+
+	// AND The remaining data has been blanked
 	assert_complex(CMPLX(0.00, 0.00), output_data[4].complex_number);
 	assert_double(0.0, output_data[4].magnitude);
 	assert_complex(CMPLX(0.00, 0.00), output_data[5].complex_number);
@@ -135,7 +150,6 @@ void test_dft_1hz_8hz() {
 
 // Wikipedia DFT Example
 void test_dft_wiki_example() {
-
 	printf("=== Testing DFT of Wiki Example, 4 samples ===\n");
 
 	int data_size = 4;
@@ -270,6 +284,7 @@ void sine(record_stream_data_t* record_data, int frequency, int sample_rate, int
 	}
 }
 
+/**
 void generate_sine_10hz_44100hz() {
 	record_stream_data_t* sample_date = 0;
 	init_record_data(&sample_date);
@@ -330,13 +345,27 @@ void test_dft_10khz_44100hz() {
 
 		printf("=== Output Data ===\n");
 		print_data(output);
+}
+**/
 
+void run_test(void (*func)()) {
+  int childPid = fork();
+  if (childPid == 0) {
+    func();
+    exit(0);
+  } else {
+    int childExitStat = 0;
+    wait(&childExitStat);
+    if (childExitStat == 0) {
+      printlncol(ANSI_GREEN, "\n=== Test Complete ===");
+    } else {
+      printlncol(ANSI_RED, "\n=== Test failed ===");
+    }
+  }
 }
 
-
 int main(void) {
-	test_dft_1hz_8hz();
-	test_dft_wiki_example();
-	test_dft_wiki_example_ctfft();
-	printlncol(ANSI_GREEN, "=== Tests Complete ===\n");
+	run_test(test_dft_1hz_8hz);
+	run_test(test_dft_wiki_example);
+	run_test(test_dft_wiki_example_ctfft);
 }

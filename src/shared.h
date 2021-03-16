@@ -52,7 +52,7 @@ FILE* get_logfile();
 int close_logfile();
 void fprint_data(FILE* file, complex_set_t* samples);
 void print_data(complex_set_t* samples);
-void fprintln (char* format, va_list vlist);
+void fprintln (char* format);
 void printlncol(char* ansi_code, char* format);
 long seek_file_size(FILE* file);
 void write_to_file(record_stream_data_t* stream_read_data, char* filename);

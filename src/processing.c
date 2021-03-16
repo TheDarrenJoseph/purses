@@ -1,7 +1,7 @@
 #include <processing.h>
 
 /**
- * Due to the Nyquist limit (half of the sampling rate)
+ * Due to the Nyquist frequency (half of the sampling rate)
  * We need to remove data samples above this frequency limit (zero them)
  * As well as double the remaining values to adjust for this
  * In this case this means throwing away the 2nd half of the results to avoid aliasing
@@ -19,8 +19,8 @@ void nyquist_filter(complex_set_t* x) {
 		double realval = creal((*complex_sample));
 		double imval = cimag((*complex_sample));
 		int non_zero = (realval != 0.0 || imval != 0.0);
-		if (frequency < nyquist_frequency && non_zero) {
-			//fprintf("Adjusting: %.2f, %.2fi by x2 for Nyquist limit\n", realval, imval);
+		if (frequency <= nyquist_frequency && non_zero) {
+			//fprintf("Adjusting: %.2d, %.2fi by x2 for Nyquist limit\n", realval, imval);
 			(*complex_sample) *= 2;
 		} else {
 			(*complex_sample) = CMPLX(0.0, 0.0);
@@ -88,6 +88,7 @@ void dft(complex_set_t* x, complex_set_t* X) {
 		}
 		//fprintf(logfile, "(Summation Output %d/%d) Real: %02f, Imaginary: %02f\n", k+1, N, creal(output), cimag(output));
 		X -> complex_numbers[k].complex_number = output;
+    X -> sample_rate = x -> sample_rate;
 	}
 }
 
