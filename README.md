@@ -9,6 +9,6 @@ There are 2 targets in the Makfile, 'compile' and 'test':
 1. `Make compile` will compile sources and generate a platform specific binary `purses.out`
 2. `Make compile` will compile test sources and generate a platform specific binary `tests.out` that performs unit testing
 
-## System Dependancies 
+## System Dependencies 
 1. ncurses (system header is used)
 2. pulseaudio (system header) (https://www.freedesktop.org/software/pulseaudio/doxygen/index.html)
