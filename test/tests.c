@@ -5,7 +5,7 @@
 #include <pulse/pulseaudio.h>
 #include <ncurses.h>
 
-#include <pulsehandler.h>
+#include <pulseaudio/pulsehandler.h>
 #include <shared.h>
 #include <processing.h>
 
@@ -108,7 +108,7 @@ void test_dft_1hz_8hz() {
 
 	printf("=== Filtered Result Data ===\n");
 	set_magnitude(output, 4);
-	nyquist_filter(output, 8, 8);
+	nyquist_filter(output);
 
 	print_data(output);
 
@@ -318,7 +318,7 @@ void test_dft_10khz_44100hz() {
 			output -> complex_numbers[i].magnitude = 0.00;
 		}
 		dft(complex_samples, output);
-		nyquist_filter(output, MAX_SAMPLE_RATE, sample_count);
+		nyquist_filter(output);
 		set_magnitude(output, sample_count);
 
 
