@@ -8,8 +8,9 @@
 int calculate_height(complex_wrapper_t wrapper) {
 	int decibels = wrapper.decibels;
 	if (decibels > 0) {
-		return wrapper.decibels/20;
-	}
+    int bar_height = wrapper.decibels/5;
+		return bar_height <= VIS_HEIGHT-2 ? bar_height : VIS_HEIGHT - 2;
+	} 
 	return 0;
 }
 
@@ -28,19 +29,21 @@ char* label_frequency(int bin_frequency, int bin_index) {
 	return output;
 }
 
-void draw_bar(WINDOW* win, int start_x, int height, const char* label){
+void draw_bar(WINDOW* win, int start_x, int height, int width, const char* label){
 	// Account for the boxing of the window
 	int start_y = VIS_HEIGHT-2;
 	mvwprintw(win, start_y, start_x, label);
 	init_pair(1, COLOR_GREEN, COLOR_GREEN);
 	wattron(win, COLOR_PAIR(1));
 	for (int i=1; i<height; i++) {
-		mvwprintw(win, start_y-i, start_x, "A");
+  	for (int j=1; j<width; j++) {
+      mvwprintw(win, start_y-i, start_x + j, "A");
+    }
 	}
 	wattroff(win, COLOR_PAIR(1));
 }
 
-// Draw 20 decibel increments
+// Draw decibel increments
 void draw_y_labels(WINDOW* win) {
 	// Account for the boxing of the window
 	int start_y = VIS_HEIGHT-2;
@@ -67,15 +70,15 @@ void update_graph(WINDOW* win, complex_set_t* output_set) {
 	// divide by 2 to get the Nyquist freuency divided by the sample count
 	int bin_frequency = (data_size > 0) ? frequency / data_size : 0;
   // Divide the total sample count by 11 bars
-	int bin_increment =  (data_size > 0) ? data_size / 11 : 0;
+	int bin_increment =  (data_size > 0) ? data_size / VIS_BARS : 0;
 	fprintf(logfile, "%dHz frequency per bin.\n", bin_frequency);
 	fprintf(logfile, "%d bin index increment.\n", bin_increment);
 	// From 5 to avoid window border, up to 5 + 12 bars
-	for (int i=1; i < 12; i++) {
+	for (int i=1; i < 11; i++) {
 		int bin_index = i*bin_increment;
 		char* label = label_frequency(bin_frequency, bin_index);
 		fprintf(logfile, "%d bin index == %s\n" , bin_index, label);
-		draw_bar(win, i*sizeof(label), calculate_height(complex_vals[bin_index]), label);
+		draw_bar(win, i*sizeof(label), calculate_height(complex_vals[bin_index]), 3, label);
 	}
 	wrefresh(win);
 }

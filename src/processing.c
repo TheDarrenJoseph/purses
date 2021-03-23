@@ -41,7 +41,7 @@ void set_magnitude(complex_set_t* x, int sample_count) {
 		double complex complex_val = this_val -> complex_number;
 
 		// Calculate magnitude
-		x -> complex_numbers[i].magnitude = (cabs(complex_val) / sample_count);
+		x -> complex_numbers[i].magnitude = (cabs(complex_val));
 		// Amplitude in Decibels = 20log10(|m|)
 		x -> complex_numbers[i].decibels = 20*log10(x -> complex_numbers[i].magnitude);
 	}
