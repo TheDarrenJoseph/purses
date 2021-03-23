@@ -3,6 +3,8 @@ Purses is an audio visualiser that interfaces with the PulseAudio sound server t
  
 Inspired by pulsemixer (https://github.com/GeorgeFilipkin/pulsemixer).
 
+![Visualiser Screenshot Example](example.png)
+
 ## How to build
 
 There are 2 targets in the Makfile, 'compile' and 'test':
