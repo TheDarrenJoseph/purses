@@ -144,13 +144,16 @@ int main(void) {
 	wtimeout(vis_win, 1);
 	pa_device_t device = get_main_device();
 	pa_session_t session = build_session("visualiser-pcm-recording");
+  int i = 0;
 	while (true) {
 		fprintf(logfile, "=== Performing visualisation ===\n");
 		perform_visualisation(&device, &session, vis_win);
-		//mvwprintw(vis_win, 0, 0, "%d", i);
+		// Print the current iteration count
+    mvwprintw(vis_win, 0, 0, "%d", i);
 		fflush(logfile);
 		int command_code = handle_input(vis_win);
 		if (command_code == 1) break;
+    i++;
 	}
 
   destroy_session(session);

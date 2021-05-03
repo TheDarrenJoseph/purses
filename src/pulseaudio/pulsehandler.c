@@ -300,10 +300,9 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
 	return 0;
 }
 
-void zero_record_data(record_stream_data_t** record_stream_data) {
-	(*record_stream_data) -> data_size = BUFFER_BYTE_COUNT;
-	for (int i=0; i < (*record_stream_data) -> data_size; i++) {
-		(*record_stream_data) -> data[i] = 0;
+void zero_record_data(record_stream_data_t* record_stream_data) {
+	for (int i=0; i < record_stream_data -> data_size; i++) {
+		record_stream_data -> data[i] = 0;
 	}
 }
 
@@ -312,23 +311,25 @@ void init_record_data(record_stream_data_t** record_stream_data) {
 	(*record_stream_data) = malloc(sizeof(record_stream_data_t));
 	// Allow BUFFER_BYTE_COUNT bytes back per read
 	(*record_stream_data) -> data_size = BUFFER_BYTE_COUNT;
-	zero_record_data(record_stream_data);
+	zero_record_data((*record_stream_data));
+}
+
+// Either initialise or empty the record data object for use
+void clean_record_data(record_stream_data_t** data) {
+		if ((*data) == NULL) {
+			init_record_data(data);
+		} else {
+			zero_record_data(*data);
+		}
+		(*data) -> buffer_filled = false;
 }
 
 int record_device(pa_device_t device, pa_session_t* session) {
     FILE *logfile = get_logfile();
-		// Set PulseAudio client library to log to stderr
-		//setenv("PULSE_LOG_SYSLOG", 1, 1);
-
     fprintf(logfile, "Recording device: %s\n", device.name);
 		fflush(logfile);
 
-		if (session -> record_stream_data == NULL) {
-			init_record_data(&session -> record_stream_data);
-		} else {
-			zero_record_data(&session -> record_stream_data);
-		}
-		session -> record_stream_data -> buffer_filled = false;
+    clean_record_data(&session -> record_stream_data);
 
 		pa_context_state_t pa_con_state = pa_context_get_state(session -> context);
 		if (PA_CONTEXT_UNCONNECTED == pa_con_state) {
