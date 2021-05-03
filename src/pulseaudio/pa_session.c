@@ -23,7 +23,7 @@ void destroy_session(pa_session_t session) {
 		session.mainloop_api = NULL;
 	}
 
-	session.record_stream_data = NULL;
+	session.stream_data = NULL;
 }
 
 void disconnect_context(pa_context** pa_ctx) {

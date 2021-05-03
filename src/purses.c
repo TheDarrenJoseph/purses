@@ -72,7 +72,7 @@ record_stream_data_t* read_stream_from_file() {
 record_stream_data_t* record_samples_from_device(pa_device_t device, pa_session_t* session) {
 	int recording_stat = record_device(device, session);
 	if (recording_stat == 0) {
-		return session -> record_stream_data;
+		return session -> stream_data;
 	} else {
 		return NULL;
 	}
@@ -86,17 +86,16 @@ void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* v
 	struct timeval before, after, elapsed;
 	gettimeofday(&before, NULL);
 
-	record_stream_data_t* stream_read_data = record_samples_from_device(*device, session);
+	record_stream_data_t* stream_data = record_samples_from_device(*device, session);
 	complex_set_t* output_set = NULL;
-	if (stream_read_data != NULL) {
-		int streamed_data_size = stream_read_data -> data_size;
-    fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
-    if (stream_read_data -> buffer_filled) {
+	if (stream_data != NULL) {
+		int streamed_data_size = stream_data -> data_size;
+    if (stream_data -> buffer_filled) {
       malloc_complex_set(&output_set, streamed_data_size, MAX_SAMPLE_RATE);
       complex_set_t* input_set = NULL;
-      input_set = record_stream_to_complex_set(stream_read_data);
+      input_set = record_stream_to_complex_set(stream_data);
       // And free the struct when we're done
-      free(stream_read_data);
+      free(stream_data);
       //fflush(logfile);
       //refresh();
       fprintf(logfile, "=== Recorded Data ===\n");
@@ -150,12 +149,12 @@ int main(void) {
 	wtimeout(vis_win, READ_TIMEOUT_MILIS);
 	pa_device_t device = get_main_device();
 	pa_session_t session = build_session("visualiser-pcm-recording");
-  long int i = 0;
+  unsigned long int i = 0;
 	while (true) {
-		fprintf(logfile, "=== Performing visualisation ===\n");
+		fprintf(logfile, "=== Performing visualisation frame no: %ld\n", i);
 		perform_visualisation(&device, &session, vis_win);
 		// Print the current iteration count
-    if(TESTING_MODE) mvwprintw(vis_win, 0, 0, "%d", i);
+    if(TESTING_MODE) mvwprintw(vis_win, 0, 0, "%ld", i);
 		fflush(logfile);
 		int command_code = handle_input(vis_win);
 		if (command_code == 1) break;

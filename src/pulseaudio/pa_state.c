@@ -128,7 +128,7 @@ int await_stream_buffer_filled(pa_session_t* session, pa_stream* stream, int* ma
 	FILE* logfile = get_logfile();
 	// Set a callback for when the state changes
 	for (int i=0; i < MAX_ITERATIONS; i++) {
-		bool buffer_filled = session -> record_stream_data -> buffer_filled;
+		bool buffer_filled = session -> stream_data -> buffer_filled;
 		if (buffer_filled) {
 			fprintf(logfile, "Stream buffer filled.\n");
 			fflush(logfile);
@@ -164,7 +164,7 @@ int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expe
 			return 0;
 		} else {
 			// Handle any errors / unexpected states
-			bool buffer_filled = session -> record_stream_data -> buffer_filled;
+			bool buffer_filled = session -> stream_data -> buffer_filled;
 			switch (stream_state) {
 				case ERROR:
 					fprintf(logfile, "PA stream encountered an error: %s!\n", pa_strerror(pa_context_errno(session -> context)));

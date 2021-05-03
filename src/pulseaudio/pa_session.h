@@ -14,7 +14,7 @@ typedef struct pa_session {
   pa_context* context;
   pa_stream* record_stream;
   pa_stream_state_t stream_state;
-  record_stream_data_t* record_stream_data;
+  record_stream_data_t* stream_data;
 } pa_session_t;
 
 pa_session_t build_session(char* context_name);

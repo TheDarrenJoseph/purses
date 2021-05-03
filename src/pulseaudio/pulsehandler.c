@@ -119,6 +119,14 @@ int disconnect_stream(pa_stream* stream) {
 // Then reads BUFFER_BYTE_COUNT into our record_stream_data_t for display
 void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 	FILE* logfile = get_logfile();
+
+  pa_session_t* session = userdata;
+  bool buffer_filled = session -> stream_data -> buffer_filled;
+  if (buffer_filled) {
+      fprintf(logfile, "Buffer filled, cancelling read callback.\n");
+      return;
+  }
+
 	size_t initial_nbytes = nbytes;
 	if (nbytes > 0) {
 		if (STREAM_READ_LOCK) {
@@ -133,7 +141,6 @@ void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 				size_t total_bytes = 0;
 				size_t read_bytes = 0;
 
-				pa_session_t* session = userdata;
 				while (read_bytes < BUFFER_BYTE_COUNT) {
 					// Peek to read each fragment from the buffer, sets nbytes
 					const void* data = 0;
@@ -141,8 +148,9 @@ void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 
 					if (data != NULL) {
 						// Read the nbytes peeked
-						record_stream_data_t* record_stream_data = session -> record_stream_data;
-						read_data(data, record_stream_data, BUFFER_BYTE_COUNT, &read_bytes);
+						record_stream_data_t* stream_data = session -> stream_data;
+						read_data(data, stream_data, BUFFER_BYTE_COUNT, &read_bytes);
+            fprintf(logfile, "Read %ld bytes from the stream buffer\n", read_bytes);
 					} else {
 						// Data hole, call drop to pull it from the buffer
 						// and move the read index forward
@@ -150,14 +158,12 @@ void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 						pa_stream_drop(p);
 					}
 
-          fprintf(logfile, "Read %ld bytes\n", read_bytes);
 					total_bytes += read_bytes;
-					//fflush(logfile);
 				}
 
         fprintf(logfile, "Read total of %ld bytes\n", total_bytes);
 				if (total_bytes == BUFFER_BYTE_COUNT) {
-					session -> record_stream_data -> buffer_filled  = true;
+					session -> stream_data -> buffer_filled  = true;
 					fprintf(logfile, "DONE reading a total of %ld / %ld bytes from the stream.\n", read_bytes, BUFFER_BYTE_COUNT);
 					STREAM_READ_LOCK = false;
 				}
@@ -235,6 +241,7 @@ int uncork_stream(pa_stream* stream, pa_session_t* session, int* mainloop_retval
 int perform_read(const char* device_name, int sink_idx, pa_session_t** session) {
 	FILE* logfile = get_logfile();
 	int mainloop_retval = 0;
+	
 
 	if ((*session) -> record_stream == NULL) {
 		 (*session) -> record_stream = setup_record_stream(*session);
@@ -306,29 +313,28 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
 	return 0;
 }
 
-void zero_record_data(record_stream_data_t** record_stream_data) {
-	for (int i=0; i < (*record_stream_data) -> data_size; i++) {
-		(*record_stream_data)  -> data[i] = 0;
+void zero_record_data(record_stream_data_t** record_data) {
+  int16_t* data = (*record_data) -> data;  
+	for (int i=0; i < (*record_data) -> data_size; i++) {
+		data[i] = 0;
 	}
-  (*record_stream_data) -> buffer_filled = false;
+  (*record_data) -> buffer_filled = false;
 }
 
-void init_record_data(record_stream_data_t** record_stream_data) {
+void init_record_data(record_stream_data_t** record_data) {
 	// Allocate stuct memory space
-	(*record_stream_data) = malloc(sizeof(record_stream_data_t));
-	// Allow BUFFER_BYTE_COUNT bytes back per read
-	(*record_stream_data) -> data_size = BUFFER_BYTE_COUNT;
-  (*record_stream_data) -> buffer_filled = false;
-	zero_record_data(record_stream_data);
+	(*record_data) = malloc(sizeof(record_stream_data_t));
+  (*record_data) -> data_size = BUFFER_BYTE_COUNT;
+	zero_record_data(record_data);
 }
 
 // Either initialise or empty the record data object for use
-void clean_record_data(record_stream_data_t** data) {
-		if ((*data) == NULL) {
-			init_record_data(data);
+void clean_record_data(record_stream_data_t** record_data) {
+		if ((*record_data) == NULL) {
+			init_record_data(record_data);
 		} else {
-			zero_record_data(data);
-		}
+      zero_record_data(record_data);
+    }
 }
 
 int record_device(pa_device_t device, pa_session_t* session) {
@@ -336,7 +342,8 @@ int record_device(pa_device_t device, pa_session_t* session) {
     fprintf(logfile, "Recording device: %s\n", device.name);
 		fflush(logfile);
 
-    clean_record_data(&session -> record_stream_data);
+    clean_record_data(&session -> stream_data);
+    //session -> record_stream_data -> data_size = BUFFER_BYTE_COUNT;
 
 		pa_context_state_t pa_con_state = pa_context_get_state(session -> context);
 		if (PA_CONTEXT_UNCONNECTED == pa_con_state) {
@@ -353,7 +360,7 @@ int record_device(pa_device_t device, pa_session_t* session) {
 
     int read_stat = perform_read(device.monitor_source_name, device.index, &session);
     if (read_stat == 0) {
-        fprintf(logfile, "Recording complete.\n");
+        fprintf(logfile, "Recording complete. Recorded %d samples\n", session -> stream_data -> data_size);
     } else {
         fprintf(logfile, "Recording failed!\n");
     }
