@@ -92,7 +92,7 @@ void draw_visualiser(WINDOW* win, complex_set_t* output_set, struct timeval time
 	int target_x = (VIS_WIDTH/2) - sizeof(banner);
 	mvwprintw(win, 0, target_x, banner);
 	long int time_milis = (long int) time_taken.tv_usec / 1000;
-	float fps = 1000 / time_milis;
+	float fps = time_milis > 0 ? 1000 / time_milis : 0;
 	update_graph(win, output_set);
 	mvwprintw(win, VIS_HEIGHT-1, VIS_WIDTH-16, "%ldms", time_milis);
 	mvwprintw(win, VIS_HEIGHT-1, VIS_WIDTH-10, "%.1fFPS", fps);

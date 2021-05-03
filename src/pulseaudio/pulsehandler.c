@@ -135,8 +135,6 @@ void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 
 				pa_session_t* session = userdata;
 				while (read_bytes < BUFFER_BYTE_COUNT) {
-					//pa_stream_readable_size() ???
-
 					// Peek to read each fragment from the buffer, sets nbytes
 					const void* data = 0;
 					pa_stream_peek(p, &data, &nbytes);
@@ -152,10 +150,12 @@ void read_stream_cb(pa_stream* p, size_t nbytes, void* userdata) {
 						pa_stream_drop(p);
 					}
 
+          fprintf(logfile, "Read %ld bytes\n", read_bytes);
 					total_bytes += read_bytes;
 					//fflush(logfile);
 				}
 
+        fprintf(logfile, "Read total of %ld bytes\n", total_bytes);
 				if (total_bytes == BUFFER_BYTE_COUNT) {
 					session -> record_stream_data -> buffer_filled  = true;
 					fprintf(logfile, "DONE reading a total of %ld / %ld bytes from the stream.\n", read_bytes, BUFFER_BYTE_COUNT);
@@ -232,38 +232,44 @@ int uncork_stream(pa_stream* stream, pa_session_t* session, int* mainloop_retval
 	return 1;
 }
 
-int perform_read(const char* device_name, int sink_idx, pa_session_t* session) {
+int perform_read(const char* device_name, int sink_idx, pa_session_t** session) {
 	FILE* logfile = get_logfile();
 	int mainloop_retval = 0;
 
-	pa_stream* record_stream = session -> record_stream;
-	if (record_stream == NULL) {
-		 record_stream = setup_record_stream(session);
+	if ((*session) -> record_stream == NULL) {
+		 (*session) -> record_stream = setup_record_stream(*session);
 	}
-	int connection_state = connect_record_stream(&record_stream, device_name);
-	if (connection_state == 0) {
-		fprintf(logfile, "Record stream connected.\n");
-	} else {
-		fprintf(logfile, "Record stream connection failed with return code: %d\n", connection_state);
-		return 1;
-	}
-	await_stream_state(session, record_stream, READY, &mainloop_retval);
+  
+  pa_stream* record_stream = (**session).record_stream;
+  pa_stream_state_t stream_state = (*session) -> stream_state;
+  if (stream_state == PA_STREAM_UNCONNECTED) {
+    int connection_state = connect_record_stream(&record_stream, device_name);
+    if (connection_state == 0) {
+      fprintf(logfile, "Record stream connected.\n");
+    } else {
+      fprintf(logfile, "Record stream connection failed with return code: %d\n", connection_state);
+      return 1;
+    }
+  }
+
+	await_stream_state((*session), record_stream, READY, &mainloop_retval);
 	// Reset the byte count for the buffer
 	buffer_nbytes = 0;
 
-	uncork_stream(record_stream, session, &mainloop_retval);
+	uncork_stream(record_stream, (*session), &mainloop_retval);
 	fprintf(logfile, "Awaiting filled data buffer from stream: %s\n", device_name);
 	// Set the data read callback now
-	pa_stream_set_read_callback(record_stream, read_stream_cb, session);
-	int await_stat = await_stream_buffer_filled(session, record_stream, &mainloop_retval);
+	pa_stream_set_read_callback(record_stream, read_stream_cb, (*session));
+	int await_stat = await_stream_buffer_filled((*session), record_stream, &mainloop_retval);
 	if (await_stat != 0) {
 		fprintf(logfile, "Something went wrong while waiting for a stream to terminate!\n");
 	  return 1;
 	}
+
 	// Drain whatever is left in the stream now we've pulled it onto the buffer
 	pa_stream_drain(record_stream, pa_stream_success_cb, NULL);
-	pa_mainloop_iterate(session -> mainloop, 1, &mainloop_retval);
-	cork_stream(record_stream, session, &mainloop_retval);
+	pa_mainloop_iterate((*session) -> mainloop, 1, &mainloop_retval);
+  cork_stream(record_stream, (*session), &mainloop_retval);
 
 	// Success / Failure states
 	if (mainloop_retval >= 0) {
@@ -300,10 +306,11 @@ int get_sinklist(pa_device_t* output_devices, int* count) {
 	return 0;
 }
 
-void zero_record_data(record_stream_data_t* record_stream_data) {
-	for (int i=0; i < record_stream_data -> data_size; i++) {
-		record_stream_data -> data[i] = 0;
+void zero_record_data(record_stream_data_t** record_stream_data) {
+	for (int i=0; i < (*record_stream_data) -> data_size; i++) {
+		(*record_stream_data)  -> data[i] = 0;
 	}
+  (*record_stream_data) -> buffer_filled = false;
 }
 
 void init_record_data(record_stream_data_t** record_stream_data) {
@@ -311,7 +318,8 @@ void init_record_data(record_stream_data_t** record_stream_data) {
 	(*record_stream_data) = malloc(sizeof(record_stream_data_t));
 	// Allow BUFFER_BYTE_COUNT bytes back per read
 	(*record_stream_data) -> data_size = BUFFER_BYTE_COUNT;
-	zero_record_data((*record_stream_data));
+  (*record_stream_data) -> buffer_filled = false;
+	zero_record_data(record_stream_data);
 }
 
 // Either initialise or empty the record data object for use
@@ -319,9 +327,8 @@ void clean_record_data(record_stream_data_t** data) {
 		if ((*data) == NULL) {
 			init_record_data(data);
 		} else {
-			zero_record_data(*data);
+			zero_record_data(data);
 		}
-		(*data) -> buffer_filled = false;
 }
 
 int record_device(pa_device_t device, pa_session_t* session) {
@@ -344,7 +351,7 @@ int record_device(pa_device_t device, pa_session_t* session) {
 			}
 		}
 
-    int read_stat = perform_read(device.monitor_source_name, device.index, session);
+    int read_stat = perform_read(device.monitor_source_name, device.index, &session);
     if (read_stat == 0) {
         fprintf(logfile, "Recording complete.\n");
     } else {

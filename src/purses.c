@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 #include <pulse/pulseaudio.h>
 #include <ncurses.h>
 #include <time.h>
@@ -86,25 +87,26 @@ void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* v
 	gettimeofday(&before, NULL);
 
 	record_stream_data_t* stream_read_data = record_samples_from_device(*device, session);
-
 	complex_set_t* output_set = NULL;
 	if (stream_read_data != NULL) {
 		int streamed_data_size = stream_read_data -> data_size;
-		fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
-		malloc_complex_set(&output_set, streamed_data_size, MAX_SAMPLE_RATE);
-		complex_set_t* input_set = NULL;
-		input_set = record_stream_to_complex_set(stream_read_data);
-		// And free the struct when we're done
-		free(stream_read_data);
-		//fflush(logfile);
-		//refresh();
-		fprintf(logfile, "=== Recorded Data ===\n");
-		fprint_data(logfile, input_set);
-		ct_fft(input_set, output_set);
-		nyquist_filter(output_set);
-		set_magnitude(output_set, streamed_data_size);
-		fprintf(logfile, "=== Result Data ===\n");
-		fprint_data(logfile, output_set);
+    fprintf(logfile, "Recorded %d samples\n", streamed_data_size);
+    if (stream_read_data -> buffer_filled) {
+      malloc_complex_set(&output_set, streamed_data_size, MAX_SAMPLE_RATE);
+      complex_set_t* input_set = NULL;
+      input_set = record_stream_to_complex_set(stream_read_data);
+      // And free the struct when we're done
+      free(stream_read_data);
+      //fflush(logfile);
+      //refresh();
+      fprintf(logfile, "=== Recorded Data ===\n");
+      fprint_data(logfile, input_set);
+      ct_fft(input_set, output_set);
+      nyquist_filter(output_set);
+      set_magnitude(output_set, streamed_data_size);
+      fprintf(logfile, "=== Result Data ===\n");
+      fprint_data(logfile, output_set);
+    }
 	} else {
 		// Zero the output set so we can display nothing
 		malloc_complex_set(&output_set, 0, MAX_SAMPLE_RATE);
@@ -135,21 +137,25 @@ int handle_input(WINDOW* window) {
 
 int main(void) {
 	FILE* logfile = get_logfile();
+  const char* TESTING_MODE_ENV = getenv("PURSES_TEST_MODE");
+  const bool TESTING_MODE = TESTING_MODE_ENV != NULL && TESTING_MODE_ENV[0] == '1';
 	// init curses
 	initscr();
 	start_color();
 	refresh();
-
+  
 	WINDOW* vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
-	wtimeout(vis_win, 1);
+  // The delay for reading from a window (use a large value to step through each iteration)
+  const int READ_TIMEOUT_MILIS = TESTING_MODE ? 1000 : 100;
+	wtimeout(vis_win, READ_TIMEOUT_MILIS);
 	pa_device_t device = get_main_device();
 	pa_session_t session = build_session("visualiser-pcm-recording");
-  int i = 0;
+  long int i = 0;
 	while (true) {
 		fprintf(logfile, "=== Performing visualisation ===\n");
 		perform_visualisation(&device, &session, vis_win);
 		// Print the current iteration count
-    mvwprintw(vis_win, 0, 0, "%d", i);
+    if(TESTING_MODE) mvwprintw(vis_win, 0, 0, "%d", i);
 		fflush(logfile);
 		int command_code = handle_input(vis_win);
 		if (command_code == 1) break;

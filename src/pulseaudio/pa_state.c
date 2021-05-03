@@ -158,6 +158,7 @@ int await_stream_state(pa_session_t* session, pa_stream* stream, pa_state_t expe
 
 	const char* expected_state_name = PA_STATE_LOOKUP[expected_state];
 	for (int i=0; i < MAX_ITERATIONS; i++) {
+    session -> stream_state = stream_state;
 		if (stream_state == expected_state) {
 			fprintf(logfile, "Stream reached expected state (%s)\n", expected_state_name);
 			return 0;
