@@ -146,7 +146,7 @@ int main(void) {
   
 	WINDOW* vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
   // The delay for reading from a window (use a large value to step through each iteration)
-  const int READ_TIMEOUT_MILIS = TESTING_MODE ? 1000 : 100;
+  const int READ_TIMEOUT_MILIS = TESTING_MODE ? 60000 : 100;
 	wtimeout(vis_win, READ_TIMEOUT_MILIS);
 	pa_device_t device = get_main_device();
 	pa_session_t session = build_session("visualiser-pcm-recording");

@@ -14,3 +14,11 @@ There are 2 targets in the Makfile, 'compile' and 'test':
 ## System Dependencies 
 1. ncurses (system header is used)
 2. pulseaudio (system header) (https://www.freedesktop.org/software/pulseaudio/doxygen/index.html)
+
+
+## Usage
+
+* You can hold 'q' to quit
+
+### Testing mode
+ If you set the environment variable PURSES_TEST_MODE to 1 (true) then a delay of 60s will we added between each frame of the main reading, processing, and rendering loop. Hitting any key will then continue onwards.
