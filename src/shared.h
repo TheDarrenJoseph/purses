@@ -23,7 +23,7 @@ static const size_t BUFFER_BYTE_COUNT = NUM_SAMPLES;
 
 typedef struct record_stream_data {
   // signed 16-bit integers, size power of 2
-  int16_t data[MAX_SAMPLE_RATE];
+  int16_t data[NUM_SAMPLES];
   int data_size;
   bool buffer_filled;
 } record_stream_data_t;
@@ -41,6 +41,7 @@ typedef struct complex_set {
   complex_wrapper_t* complex_numbers;
   // Number of samples in complex_numbers
   int data_size;
+  bool has_data;
   // sample rate in Hz
   int sample_rate;
   // The sampling rate of the samples (to allow adjustment)

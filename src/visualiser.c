@@ -78,7 +78,8 @@ void update_graph(WINDOW* win, complex_set_t* output_set) {
 		int bin_index = i*bin_increment;
 		char* label = label_frequency(bin_frequency, bin_index);
 		fprintf(logfile, "%d bin index == %s\n" , bin_index, label);
-		draw_bar(win, i*sizeof(label), calculate_height(complex_vals[bin_index]), 3, label);
+    int bar_height = calculate_height(complex_vals[bin_index]);
+		draw_bar(win, i*sizeof(label), bar_height, 3, label);
 	}
 	wrefresh(win);
 }

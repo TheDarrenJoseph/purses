@@ -50,6 +50,4 @@ int perform_read(const char* device_name, int sink_idx, pa_session_t** session);
 
 int get_sinklist(pa_device_t* output_devices, int* count);
 
-void init_record_data(record_stream_data_t** stream_read_data);
-
-int record_device(pa_device_t device, pa_session_t* session);
+int record_device(pa_device_t device, pa_session_t** session);

@@ -8,6 +8,7 @@ pa_session_t build_session(char* context_name) {
 	session.mainloop_api = pa_mainloop_get_api(session.mainloop);
 	session.record_stream = NULL;
 	session.context = pa_context_new(session.mainloop_api, context_name);
+  session.stream_data = NULL;
 	return session;
 }
 

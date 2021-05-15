@@ -60,8 +60,7 @@ void write_stream_to_file(record_stream_data_t* stream_read_data) {
 
 // Reads recorded stream data from the binary file called "record.bin"
 record_stream_data_t* read_stream_from_file() {
-	record_stream_data_t* file_read_data = 0;
-	init_record_data(&file_read_data);
+	record_stream_data_t* file_read_data = malloc(sizeof(record_stream_data_t));
 	read_from_file(file_read_data, "record.bin");
 	return file_read_data;
 }
@@ -70,7 +69,7 @@ record_stream_data_t* read_stream_from_file() {
 // Returns a record_stream_data_t filled from the device on successful
 // Returns NULL in the event of a failure
 record_stream_data_t* record_samples_from_device(pa_device_t device, pa_session_t* session) {
-	int recording_stat = record_device(device, session);
+	int recording_stat = record_device(device, &session);
 	if (recording_stat == 0) {
 		return session -> stream_data;
 	} else {
@@ -91,15 +90,16 @@ void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* v
 	if (stream_data != NULL) {
 		int streamed_data_size = stream_data -> data_size;
     if (stream_data -> buffer_filled) {
-      malloc_complex_set(&output_set, streamed_data_size, MAX_SAMPLE_RATE);
       complex_set_t* input_set = NULL;
       input_set = record_stream_to_complex_set(stream_data);
       // And free the struct when we're done
       free(stream_data);
       //fflush(logfile);
       //refresh();
+      malloc_complex_set(&output_set, streamed_data_size, MAX_SAMPLE_RATE);
       fprintf(logfile, "=== Recorded Data ===\n");
       fprint_data(logfile, input_set);
+
       ct_fft(input_set, output_set);
       nyquist_filter(output_set);
       set_magnitude(output_set, streamed_data_size);
