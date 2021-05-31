@@ -10,6 +10,7 @@
 #include <shared.h>
 #include <processing.h>
 #include <visualiser.h>
+#include <settings.h>
 
 // Prints a PulseAudio device to the logfile
 void print_device(pa_device_t device, int device_index) {
@@ -37,21 +38,7 @@ void print_devicelist(pa_device_t* devices, int size) {
 	if (!found) fprintf(logfile,"No initialised devices found\n");
 }
 
-// Gets a list of PulseAudio Sinks
-// Returns 0 if the listing was successful, 1 in the event of an error
-int get_sinks(pa_device_t* device_list, int* count) {
-  int sink_list_stat = get_sinklist(device_list, count);
-	return (sink_list_stat != 0) ? 1 : 0;
-}
 
-pa_device_t get_main_device() {
-	pa_device_t output_devicelist[16];
-	int count = 0;
-	int dev_stat = get_sinks(output_devicelist, &count);
-	if (dev_stat == 0) print_devicelist(output_devicelist, 16);
-	pa_device_t main_device = output_devicelist[0];
-	return main_device;
-}
 
 // Writes the recorded stream data to a binary file called "record.bin"
 void write_stream_to_file(record_stream_data_t* stream_read_data) {
@@ -116,20 +103,25 @@ void perform_visualisation(pa_device_t* device, pa_session_t* session, WINDOW* v
 	// Set the subtracted elapsed time
 	timersub(&after, &before, &elapsed);
 	draw_visualiser(vis_win, output_set, elapsed);
+	mvwprintw(vis_win, VIS_HEIGHT-1, 1, "q - Quit, s - Choose device");
 	wrefresh(vis_win);
 	refresh();
 }
 
 // Gets a single character of input from the provided window
-// Returning an integer of 0 if nothing is matched, and 1 for quit
+// Returning an integer of 0 if nothing is matched
+// 1 for quit
+// 2 for settings menu
 int handle_input(WINDOW* window) {
 	int keypress = wgetch(window);
 	if (ERR != keypress) {
 		char input = (char) keypress;
-		// q - quit
-		if (input == 'q') {
-			return 1;
-		}
+    switch(input) {
+      case 'q':
+        return 1;
+      case 's':
+        return 2;
+    } 
 	}
 	return 0;
 }
@@ -142,31 +134,44 @@ int main(void) {
 	initscr();
 	start_color();
 	refresh();
-  
-	WINDOW* vis_win = newwin(VIS_HEIGHT,VIS_WIDTH,1,0);
+  // Don't write input characters to the display
+  noecho();
+
+	WINDOW* visusaliser_win = newwin(VIS_HEIGHT, VIS_WIDTH, 1, 0);
+	WINDOW* settings_win = newwin(SETTINGS_HEIGHT, SETTINGS_WIDTH, 2, 5);
+
   // The delay for reading from a window (use a large value to step through each iteration)
   const int READ_TIMEOUT_MILIS = TESTING_MODE ? 60000 : 100;
-	wtimeout(vis_win, READ_TIMEOUT_MILIS);
+	wtimeout(visusaliser_win, READ_TIMEOUT_MILIS);
+	wtimeout(settings_win, 500);
 	pa_device_t device = get_main_device();
+  int device_index = 0;
 	pa_session_t session = build_session("visualiser-pcm-recording");
   unsigned long int i = 0;
 	while (true) {
 		fprintf(logfile, "=== Performing visualisation frame no: %ld\n", i);
-		perform_visualisation(&device, &session, vis_win);
+		perform_visualisation(&device, &session, visusaliser_win);
 		// Print the current iteration count
-    if(TESTING_MODE) mvwprintw(vis_win, 0, 0, "%ld", i);
+    if(TESTING_MODE) mvwprintw(visusaliser_win, 0, 0, "%ld", i);
 		fflush(logfile);
-		int command_code = handle_input(vis_win);
+		int command_code = handle_input(visusaliser_win);
 		if (command_code == 1) break;
+		if (command_code == 2) {
+      device = show_device_choice_window(settings_win, &device_index);
+  		fprintf(logfile, "=== Chosen device: %d. %s\n", device_index, device.name);
+      werase(visusaliser_win);
+      wrefresh(visusaliser_win);
+    }
     i++;
 	}
 
   destroy_session(session);
-
 	fflush(logfile);
-	delwin(vis_win);
+	delwin(settings_win);
+	delwin(visusaliser_win);
 	endwin();
 	close_logfile();
+  fprintf(logfile, "purses exited successfully!\n");
 	// exit with success status code
 	return 0;
 }
